@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Encarteiramento Flexível · Dito</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  :root{
+    --bg: #0b0f14;
+    --panel: #121820;
+    --panel-2: #161d27;
+    --line: #232c38;
+    --text: #e7ebf0;
+    --muted: #8a97a8;
+    --gold: #c9a24b;
+    --gold-dim: #7d6a3a;
+    --green: #4caf7d;
+    --red: #d9695f;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); padding:32px 20px 80px;
+    min-height:100vh;
+  }
+  .wrap{ max-width:920px; margin:0 auto; }
+  header{ margin-bottom:22px; border-bottom:1px solid var(--line); padding-bottom:20px; }
+  .eyebrow{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; color:var(--gold); text-transform:uppercase; }
+  h1{ font-family:var(--serif); font-weight:400; font-size:28px; margin:6px 0 4px; letter-spacing:.2px; }
+  .sub{ color:var(--muted); font-size:13.5px; line-height:1.5; max-width:640px; }
+
+  .configbar{
+    display:flex; align-items:center; gap:10px; font-family:var(--mono); font-size:11.5px;
+    color:var(--muted); margin-top:14px;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--red); flex-shrink:0; }
+  .dot.ok{ background:var(--green); }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:22px 24px; margin-bottom:20px;
+  }
+  .panel h2{
+    font-family:var(--mono); font-size:12px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 16px; display:flex; align-items:center; gap:8px;
+  }
+  .panel h2 .n{ color:var(--gold); }
+
+  .drop{
+    border:1.5px dashed var(--line); border-radius:8px; padding:26px;
+    text-align:center; cursor:pointer; transition:.15s; background:var(--panel-2);
+  }
+  .drop:hover, .drop.drag{ border-color:var(--gold-dim); background:#1a2129; }
+  .drop input{ display:none; }
+  .drop .icon{ font-size:20px; color:var(--gold); margin-bottom:6px; }
+  .drop .txt{ font-size:13.5px; color:var(--text); }
+  .drop .sm{ font-size:11.5px; color:var(--muted); margin-top:4px; }
+
+  .filecard{
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    padding:12px 16px; font-family:var(--mono); font-size:12.5px;
+  }
+  .filecard .name{ color:var(--text); }
+  .filecard .meta{ color:var(--muted); }
+  .filecard .clear{ color:var(--red); cursor:pointer; margin-left:14px; }
+
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:18px; }
+  label{ display:block; font-family:var(--mono); font-size:11px; letter-spacing:.06em; color:var(--muted); text-transform:uppercase; margin-bottom:6px; }
+  input[type=text], input[type=number]{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); border-radius:6px;
+    padding:10px 12px; color:var(--text); font-family:var(--mono); font-size:14px;
+  }
+  input:focus{ outline:none; border-color:var(--gold-dim); }
+  .field-hint{ font-size:11px; color:var(--muted); margin-top:5px; }
+
+  .vendors{ margin-top:16px; }
+  .vendor-row{
+    display:grid; grid-template-columns:90px 1fr; gap:10px; align-items:center; margin-bottom:8px;
+  }
+  .vendor-row .tag{ font-family:var(--mono); font-size:11.5px; color:var(--muted); text-align:right; }
+
+  .btn{
+    font-family:var(--mono); font-size:12.5px; letter-spacing:.05em; text-transform:uppercase;
+    background:var(--gold); color:#1a1406; border:none; border-radius:6px;
+    padding:11px 20px; cursor:pointer; font-weight:600; transition:.15s;
+  }
+  .btn:hover{ background:#ddb35c; }
+  .btn:disabled{ background:#3a3628; color:#6b6450; cursor:not-allowed; }
+  .btn.secondary{ background:transparent; border:1px solid var(--line); color:var(--text); }
+  .btn.secondary:hover{ border-color:var(--gold-dim); background:var(--panel-2); }
+
+  .actions{ display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+
+  .msg{ font-size:12.5px; padding:10px 14px; border-radius:6px; margin-top:14px; font-family:var(--mono); }
+  .msg.err{ background:rgba(217,105,95,.1); border:1px solid rgba(217,105,95,.35); color:#f0a89f; }
+  .msg.ok{ background:rgba(76,175,125,.1); border:1px solid rgba(76,175,125,.35); color:#8fd6ae; }
+  .msg.warn{ background:rgba(201,162,75,.1); border:1px solid rgba(201,162,75,.35); color:#e3c47f; }
+  .msg.info{ background:rgba(138,151,168,.1); border:1px solid rgba(138,151,168,.3); color:var(--muted); }
+
+  #globalMsg{ margin-bottom:20px; }
+  #globalMsg .msg{ font-size:13.5px; padding:14px 18px; margin-top:0; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  #globalMsg .msg .x{ cursor:pointer; opacity:.6; }
+  #globalMsg .msg .x:hover{ opacity:1; }
+
+  table{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px; margin-top:6px; }
+  th{ text-align:left; color:var(--muted); font-weight:500; padding:8px 10px; border-bottom:1px solid var(--line); text-transform:uppercase; font-size:10.5px; letter-spacing:.05em; }
+  td{ padding:7px 10px; border-bottom:1px solid #1b2229; color:var(--text); }
+  tr:hover td{ background:var(--panel-2); }
+
+  .stat-row{ display:flex; gap:24px; flex-wrap:wrap; margin-top:4px; }
+  .stat .v{ font-family:var(--mono); font-size:22px; color:var(--gold); }
+  .stat .l{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+
+  .lote-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 14px; background:var(--panel-2); border:1px solid var(--line); border-radius:6px;
+    font-family:var(--mono); font-size:12px; margin-bottom:8px;
+  }
+  .lote-item .l-name{ color:var(--text); }
+  .lote-item .l-meta{ color:var(--muted); }
+  .empty{ color:var(--muted); font-size:13px; font-style:italic; padding:8px 2px; }
+
+  footer{ text-align:center; margin-top:36px; color:var(--muted); font-size:11px; font-family:var(--mono); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">CRM Ops · Dito</div>
+    <h1>Encarteiramento Flexível</h1>
+    <div class="sub">Sobe a segmentação exportada da Dito, informa loja e vendedores, e gera a tabela‑chave (CPF · Loja · Vendedor). Estado compartilhado com o time via planilha — todo mundo vê os mesmos lotes pendentes.</div>
+    <div class="configbar">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">conectando ao backend…</span>
+    </div>
+  </header>
+
+  <div id="globalMsg"></div>
+
+  <div class="panel">
+    <h2><span class="n">·</span> Identificação</h2>
+    <div class="grid">
+      <div>
+        <label>Seu nome</label>
+        <input type="text" id="usuarioNome" placeholder="ex: Pedro">
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 1: UPLOAD -->
+  <div class="panel">
+    <h2><span class="n">01</span> Base de segmentação</h2>
+    <div id="dropzone" class="drop">
+      <input type="file" id="fileInput" accept=".csv">
+      <div class="icon">↑</div>
+      <div class="txt">Arraste o CSV exportado da Dito ou clique pra escolher</div>
+      <div class="sm">Coluna com "ID=CPF" é detectada automaticamente</div>
+    </div>
+    <div id="fileInfo" style="margin-top:14px;"></div>
+  </div>
+
+  <!-- STEP 2: PARAMS -->
+  <div class="panel" id="paramsPanel" style="display:none;">
+    <h2><span class="n">02</span> Loja e vendedores</h2>
+    <div class="grid">
+      <div>
+        <label>Código da loja (4 dígitos)</label>
+        <input type="text" id="lojaCode" maxlength="4" placeholder="1170">
+        <div class="field-hint">Vira <span id="storePreview">00XXXX</span> na tabela‑chave</div>
+      </div>
+      <div>
+        <label>Quantidade de vendedores</label>
+        <input type="number" id="qtdVendedores" min="1" max="30" value="1">
+      </div>
+    </div>
+
+    <div class="vendors" id="vendorsWrap"></div>
+
+    <div class="actions">
+      <button class="btn" id="btnGerarLote">Gerar encarteiramento desta loja →</button>
+    </div>
+    <div id="loteMsg"></div>
+  </div>
+
+  <!-- STEP 3: SESSION / LOTES -->
+  <div class="panel" id="sessionPanel">
+    <h2><span class="n">03</span> Pendentes (ainda não exportados) <span style="margin-left:auto; cursor:pointer; color:var(--gold);" id="btnRefresh">↻ atualizar</span></h2>
+    <div id="lotesList"></div>
+    <div class="stat-row" id="statRow"></div>
+    <div id="dupWarning"></div>
+
+    <div class="actions">
+      <button class="btn" id="btnDownload">Baixar Excel‑chave (pendentes) e marcar como exportado</button>
+      <button class="btn secondary" id="btnPreview">Ver prévia</button>
+    </div>
+
+    <div id="previewWrap" style="margin-top:18px; display:none;">
+      <table id="previewTable">
+        <thead><tr><th>reference</th><th>Store_ID</th><th>Seller_ID</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="field-hint" style="margin-top:8px;">Mostrando as primeiras 15 linhas pendentes.</div>
+    </div>
+  </div>
+
+  <footer>gera arquivo .csv delimitado por ; · UTF‑8 com BOM · estado compartilhado via Google Sheets</footer>
+</div>
+
+<script>
+// ==== CONFIG ====
+// Cole aqui a URL do seu Web App do Apps Script (Deploy > New deployment > Web app)
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwDN1dINeHs64CGX1JDG1d3MtP_hPX2m4pHSR2dzJJOSwueCuPNQHPYFHB0VSS0IQQhdg/exec";
+
+let cpfList = [];
+let currentFileName = "";
+let allRows = [];   // tudo que veio do backend (histórico completo)
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileInfo = document.getElementById('fileInfo');
+const paramsPanel = document.getElementById('paramsPanel');
+const lojaCode = document.getElementById('lojaCode');
+const storePreview = document.getElementById('storePreview');
+const qtdVendedores = document.getElementById('qtdVendedores');
+const vendorsWrap = document.getElementById('vendorsWrap');
+const loteMsg = document.getElementById('loteMsg');
+const lotesList = document.getElementById('lotesList');
+const statRow = document.getElementById('statRow');
+const dupWarning = document.getElementById('dupWarning');
+const previewWrap = document.getElementById('previewWrap');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const usuarioNome = document.getElementById('usuarioNome');
+
+usuarioNome.value = localStorage.getItem('encarteiramento_usuario') || '';
+usuarioNome.addEventListener('input', () => localStorage.setItem('encarteiramento_usuario', usuarioNome.value));
+
+// ---------- MENSAGEM GLOBAL (fica visível até a próxima ação, não some com painel) ----------
+const globalMsg = document.getElementById('globalMsg');
+function showGlobalMsg(type, text){
+  globalMsg.innerHTML = `<div class="msg ${type}"><span>${text}</span><span class="x" onclick="this.closest('.msg').remove()">✕</span></div>`;
+  globalMsg.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ---------- BACKEND ----------
+async function fetchState(){
+  if (SCRIPT_URL.includes('COLE_AQUI')){
+    statusDot.className = 'dot';
+    statusText.textContent = 'backend não configurado — cole a URL do Apps Script no HTML (constante SCRIPT_URL)';
+    return;
+  }
+  try{
+    const res = await fetch(`${SCRIPT_URL}?action=getState`);
+    const data = await res.json();
+    allRows = data.rows || [];
+    statusDot.className = 'dot ok';
+    statusText.textContent = `conectado · ${allRows.length.toLocaleString('pt-BR')} registros na planilha`;
+    renderSession();
+  }catch(err){
+    statusDot.className = 'dot';
+    statusText.textContent = 'erro ao conectar no backend: ' + err.message;
+  }
+}
+
+async function postAction(payload){
+  const res = await fetch(SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight CORS no Apps Script
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+// ---------- UPLOAD ----------
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+function padCPF(raw){
+  const digits = String(raw).replace(/\D/g,'');
+  return digits.padStart(11,'0');
+}
+
+function handleFile(file){
+  currentFileName = file.name;
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results){
+      const rows = results.data;
+      const fields = results.meta.fields || [];
+      if (!rows.length){
+        fileInfo.innerHTML = `<div class="msg err">Arquivo vazio ou ilegível.</div>`;
+        return;
+      }
+      let idCol = fields.find(f => f.toLowerCase() === 'user_id');
+      if (!idCol || !String(rows[0][idCol]||'').startsWith('ID=')){
+        idCol = fields.find(f => String(rows[0][f]||'').trim().startsWith('ID='));
+      }
+      if (!idCol){
+        fileInfo.innerHTML = `<div class="msg err">Não encontrei nenhuma coluna com o padrão "ID=CPF". Verifica se é mesmo um export da Dito.</div>`;
+        return;
+      }
+      cpfList = rows
+        .map(r => r[idCol])
+        .filter(v => v !== undefined && v !== null && String(v).trim() !== '')
+        .map(v => padCPF(String(v).replace(/^ID=/i,'')));
+
+      const historicSet = new Set(allRows.map(r => String(r.reference)));
+      const jaCarteirizados = cpfList.filter(c => historicSet.has(c));
+
+      fileInfo.innerHTML = `
+        <div class="filecard">
+          <div>
+            <div class="name">${currentFileName}</div>
+            <div class="meta">coluna detectada: "${idCol}" · ${cpfList.length.toLocaleString('pt-BR')} CPFs extraídos</div>
+          </div>
+          <div class="clear" id="clearFile">remover</div>
+        </div>
+        ${jaCarteirizados.length ? `<div class="msg warn">⚠ ${jaCarteirizados.length.toLocaleString('pt-BR')} destes CPFs já aparecem em algum lote anterior na planilha (pode ser realocação — confere se é intencional).</div>` : ''}
+      `;
+      document.getElementById('clearFile').onclick = () => {
+        cpfList = []; currentFileName = ''; fileInput.value = '';
+        fileInfo.innerHTML = ''; paramsPanel.style.display = 'none';
+      };
+      paramsPanel.style.display = 'block';
+      loteMsg.innerHTML = '';
+      renderVendorFields();
+    },
+    error: function(err){
+      fileInfo.innerHTML = `<div class="msg err">Erro ao ler CSV: ${err.message}</div>`;
+    }
+  });
+}
+
+lojaCode.addEventListener('input', () => {
+  const v = lojaCode.value.replace(/\D/g,'').slice(0,4);
+  lojaCode.value = v;
+  storePreview.textContent = v ? '00' + v.padStart(4,'0') : '00XXXX';
+});
+
+qtdVendedores.addEventListener('input', renderVendorFields);
+
+function renderVendorFields(){
+  let n = parseInt(qtdVendedores.value) || 1;
+  n = Math.max(1, Math.min(30, n));
+  qtdVendedores.value = n;
+  const existing = vendorsWrap.querySelectorAll('.vendor-row input');
+  const prevValues = Array.from(existing).map(i => i.value);
+  vendorsWrap.innerHTML = '';
+  for (let i = 0; i < n; i++){
+    const row = document.createElement('div');
+    row.className = 'vendor-row';
+    row.innerHTML = `
+      <div class="tag">vendedor ${i+1}</div>
+      <input type="text" class="vendorCode" placeholder="ex: 1835" value="${prevValues[i] || ''}">`;
+    vendorsWrap.appendChild(row);
+  }
+}
+
+function shuffle(arr){
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+document.getElementById('btnGerarLote').addEventListener('click', async () => {
+  loteMsg.innerHTML = '';
+  if (!cpfList.length){
+    loteMsg.innerHTML = `<div class="msg err">Sobe um arquivo de segmentação primeiro.</div>`;
+    return;
+  }
+  const lojaRaw = lojaCode.value.trim();
+  if (!lojaRaw){
+    loteMsg.innerHTML = `<div class="msg err">Informa o código da loja.</div>`;
+    return;
+  }
+  const usuario = usuarioNome.value.trim() || 'desconhecido';
+  const storeID = '00' + lojaRaw.padStart(4,'0');
+  const vendorInputs = Array.from(document.querySelectorAll('.vendorCode')).map(i => i.value.trim());
+  if (vendorInputs.some(v => !v)){
+    loteMsg.innerHTML = `<div class="msg err">Preenche o código de todos os vendedores.</div>`;
+    return;
+  }
+  const sellerIDs = vendorInputs.map(v => `${storeID}:${v}`);
+
+  const shuffledCPFs = shuffle(cpfList);
+  const shuffledVendorOrder = shuffle(sellerIDs.map((s,i) => i));
+  const nV = sellerIDs.length;
+  const base = Math.floor(shuffledCPFs.length / nV);
+  const remainder = shuffledCPFs.length % nV;
+  const extraSet = new Set(shuffledVendorOrder.slice(0, remainder));
+
+  let cursor = 0;
+  const rowsToSend = [];
+  for (let i = 0; i < nV; i++){
+    const qty = base + (extraSet.has(i) ? 1 : 0);
+    const slice = shuffledCPFs.slice(cursor, cursor + qty);
+    cursor += qty;
+    slice.forEach(cpf => rowsToSend.push({ reference: cpf, Store_ID: storeID, Seller_ID: sellerIDs[i] }));
+  }
+
+  const arquivoOrigem = currentFileName;
+  document.getElementById('btnGerarLote').disabled = true;
+  loteMsg.innerHTML = `<div class="msg info">Gravando na planilha…</div>`;
+
+  let sucesso = false;
+  try{
+    const resp = await postAction({ action: 'appendLote', usuario, arquivo: arquivoOrigem, lojaRef: storeID, rows: rowsToSend });
+    if (resp && resp.ok){
+      sucesso = true;
+    } else {
+      throw new Error(resp && resp.error ? resp.error : 'resposta inesperada do backend');
+    }
+  }catch(err){
+    showGlobalMsg('err', `✕ Erro ao gravar o lote da loja ${storeID} (arquivo "${arquivoOrigem}"): ${err.message}. Nada foi salvo — tenta de novo.`);
+  }
+  document.getElementById('btnGerarLote').disabled = false;
+
+  if (sucesso){
+    cpfList = []; currentFileName = '';
+    fileInput.value = ''; fileInfo.innerHTML = '';
+    paramsPanel.style.display = 'none';
+    lojaCode.value = ''; storePreview.textContent = '00XXXX';
+    loteMsg.innerHTML = '';
+
+    await fetchState();
+
+    showGlobalMsg('ok', `✓ Loja ${storeID} — "${arquivoOrigem}": ${shuffledCPFs.length.toLocaleString('pt-BR')} clientes gravados e divididos entre ${nV} vendedor(es). Confirmado na planilha.`);
+  }
+});
+
+function renderSession(){
+  const pending = allRows.filter(r => r.exportado === false || r.exportado === 'FALSE' || r.exportado === '');
+  if (!pending.length){
+    lotesList.innerHTML = `<div class="empty">Nenhum lote pendente. Tudo que foi gerado já está exportado.</div>`;
+    statRow.innerHTML = '';
+    dupWarning.innerHTML = '';
+    return;
+  }
+
+  const groups = {};
+  pending.forEach(r => {
+    const key = `${r.loja_ref}__${r.arquivo_origem}__${r.usuario}__${r.timestamp}`;
+    if (!groups[key]) groups[key] = { loja: r.loja_ref, arquivo: r.arquivo_origem, usuario: r.usuario, rows: [] };
+    groups[key].rows.push(r);
+  });
+
+  lotesList.innerHTML = Object.values(groups).map(g => {
+    const bySeller = {};
+    g.rows.forEach(r => { bySeller[r.Seller_ID] = (bySeller[r.Seller_ID]||0) + 1; });
+    const sellerSummary = Object.entries(bySeller).map(([s,q]) => `${s.split(':')[1]}: ${q}`).join(' · ');
+    return `
+      <div class="lote-item">
+        <div>
+          <div class="l-name">Loja ${g.loja} <span class="l-meta">— ${g.arquivo} · por ${g.usuario}</span></div>
+          <div class="l-meta">${sellerSummary}</div>
+        </div>
+        <div class="l-meta">${g.rows.length.toLocaleString('pt-BR')} clientes</div>
+      </div>`;
+  }).join('');
+
+  const totalClientes = pending.length;
+  const totalLojas = new Set(pending.map(r => r.loja_ref)).size;
+  const totalVendedores = new Set(pending.map(r => r.Seller_ID)).size;
+
+  statRow.innerHTML = `
+    <div class="stat"><div class="v">${totalClientes.toLocaleString('pt-BR')}</div><div class="l">clientes pendentes</div></div>
+    <div class="stat"><div class="v">${totalLojas}</div><div class="l">loja(s)</div></div>
+    <div class="stat"><div class="v">${totalVendedores}</div><div class="l">vendedor(es)</div></div>
+  `;
+
+  const seen = new Map(); const dups = new Set();
+  pending.forEach(r => { if (seen.has(r.reference)) dups.add(r.reference); seen.set(r.reference, true); });
+  dupWarning.innerHTML = dups.size
+    ? `<div class="msg warn">⚠ ${dups.size} CPF(s) aparecem em mais de um lote pendente (possível conflito entre vendedores). Confere antes de exportar.</div>`
+    : '';
+}
+
+document.getElementById('btnPreview').addEventListener('click', () => {
+  const pending = allRows.filter(r => r.exportado === false || r.exportado === 'FALSE' || r.exportado === '');
+  const tbody = document.querySelector('#previewTable tbody');
+  tbody.innerHTML = pending.slice(0, 15).map(r => `
+    <tr><td>${r.reference}</td><td>${r.Store_ID}</td><td>${r.Seller_ID}</td></tr>
+  `).join('');
+  previewWrap.style.display = previewWrap.style.display === 'none' ? 'block' : 'none';
+});
+
+document.getElementById('btnRefresh').addEventListener('click', fetchState);
+
+document.getElementById('btnDownload').addEventListener('click', async () => {
+  const pending = allRows.filter(r => r.exportado === false || r.exportado === 'FALSE' || r.exportado === '');
+  if (!pending.length){
+    showGlobalMsg('warn', 'Não tem nada pendente pra exportar.');
+    return;
+  }
+  const header = 'reference;Store_ID;Seller_ID';
+  const lines = pending.map(r => `${r.reference};${r.Store_ID};${r.Seller_ID}`);
+  const csv = '\uFEFF' + [header, ...lines].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  const filename = `excel_chave_encarteiramento_${stamp}.csv`;
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  try{
+    await postAction({ action: 'markAllExported' });
+    await fetchState();
+    showGlobalMsg('ok', `✓ Baixado "${filename}" com ${pending.length.toLocaleString('pt-BR')} clientes, e marcado como exportado na planilha.`);
+  }catch(err){
+    showGlobalMsg('warn', `Baixei o arquivo, mas não consegui marcar como exportado na planilha (${err.message}). Se gerar de novo, pode vir duplicado — confere antes de subir na Dito.`);
+  }
+});
+
+fetchState();
+</script>
+</body>
+</html>
