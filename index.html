@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Encarteiramento · Dito</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* paleta TACO — tema único, claro, usado em toda a página */
+    --brand-navy: #314572;
+    --brand-teal: #6aaec3;
+    --brand-magenta: #d00c65;
+    --brand-orange: #e27b37;
+    --brand-yellow: #ffcc29;
+    --brand-lime: #c2d841;
+    --brand-bg: #faf9f3;
+    --brand-card: #ffffff;
+    --brand-line: #e8e6da;
+    --brand-muted: #7c8291;
+    --poppins: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+    --bg: var(--brand-bg);
+    --panel: var(--brand-card);
+    --panel-2: #f4f1e6;
+    --line: var(--brand-line);
+    --text: var(--brand-navy);
+    --muted: var(--brand-muted);
+    --accent: var(--brand-magenta);
+    --accent-soft: var(--brand-lime);
+    --green: #2f8a5f;
+    --red: #c0473c;
+    --blue: #3b6f95;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --sans: var(--poppins);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:var(--sans); padding:32px 20px 80px;
+    min-height:100vh;
+  }
+  .wrap{ max-width:920px; margin:0 auto; }
+  header{ margin-bottom:22px; padding-bottom:20px; }
+  .eyebrow{ font-family:var(--sans); font-size:11.5px; font-weight:600; letter-spacing:.1em; color:var(--accent); text-transform:uppercase; }
+  h1{ font-family:var(--sans); font-weight:600; font-size:26px; margin:6px 0 4px; letter-spacing:.1px; color:var(--text); }
+  .sub{ color:var(--muted); font-size:13.5px; line-height:1.55; max-width:640px; }
+
+  .configbar{
+    display:flex; align-items:center; gap:10px; font-family:var(--sans); font-size:12px;
+    color:var(--muted); margin-top:14px;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--red); flex-shrink:0; }
+  .dot.ok{ background:var(--green); }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:22px 24px; margin-bottom:20px; box-shadow:0 3px 14px rgba(49,69,114,.05);
+  }
+  .panel h2{
+    font-family:var(--sans); font-size:11.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--muted); margin:0; display:flex; align-items:center; gap:8px;
+  }
+  .panel h2 .n{ color:var(--accent); }
+
+  .block-panel{ position:relative; }
+  .block-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .block-remove{ font-family:var(--sans); font-size:11.5px; color:var(--red); cursor:pointer; font-weight:500; }
+  .block-remove:hover{ text-decoration:underline; }
+
+  .drop{
+    border:1.5px dashed var(--line); border-radius:14px; padding:22px;
+    text-align:center; cursor:pointer; transition:.15s; background:var(--panel-2);
+  }
+  .drop:hover, .drop.drag{ border-color:var(--accent-soft); background:#f2efe0; }
+  .drop input{ display:none; }
+  .drop .icon{ font-size:18px; color:var(--accent); margin-bottom:4px; }
+  .drop .txt{ font-size:13.5px; color:var(--text); font-weight:500; }
+  .drop .sm{ font-size:11.5px; color:var(--muted); margin-top:4px; }
+
+  .filecard{
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:12px;
+    padding:12px 16px; font-family:var(--mono); font-size:12.5px;
+  }
+  .filecard .name{ color:var(--text); }
+  .filecard .meta{ color:var(--muted); }
+  .filecard .clear{ color:var(--red); cursor:pointer; margin-left:14px; }
+
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+  label{ display:block; font-family:var(--sans); font-weight:500; font-size:12.5px; color:var(--text); opacity:.7; text-transform:none; letter-spacing:0; margin-bottom:6px; }
+  input[type=text], input[type=number]{
+    width:100%; background:#fff; border:1.5px solid var(--line); border-radius:12px;
+    padding:12px 14px; color:var(--text); font-family:var(--sans); font-size:16px;
+  }
+  input:focus{ outline:none; border-color:var(--accent-soft); box-shadow:0 0 0 3px rgba(194,216,65,.3); }
+  .field-hint{ font-size:11.5px; color:var(--muted); margin-top:5px; }
+
+  .vendors{ margin-top:16px; }
+  .vendor-row{
+    display:grid; grid-template-columns:90px 1fr; gap:10px; align-items:center; margin-bottom:8px;
+  }
+  .vendor-row .tag{ font-family:var(--mono); font-size:11.5px; color:var(--muted); text-align:right; }
+
+  .btn{
+    font-family:var(--sans); font-size:14.5px; font-weight:600; letter-spacing:0; text-transform:none;
+    background:var(--accent-soft); color:var(--brand-navy); border:none; border-radius:12px;
+    padding:13px 20px; cursor:pointer; transition:.15s;
+  }
+  .btn:hover{ background:#b3ca35; }
+  .btn:disabled{ background:#e6e4d8; color:#a8a89c; cursor:not-allowed; }
+  .btn.secondary{ background:transparent; border:1.5px solid var(--line); color:var(--text); }
+  .btn.secondary:hover{ border-color:var(--accent-soft); background:var(--panel-2); }
+  .btn.wide{ width:100%; }
+  .btn.small{ padding:7px 13px; font-size:12px; }
+
+  .actions{ display:flex; gap:10px; margin-top:18px; flex-wrap:wrap; }
+
+  .msg{ font-size:12.5px; padding:10px 14px; border-radius:10px; margin-top:14px; font-family:var(--sans); }
+  .msg.err{ background:#fdeceb; border:1px solid #f3c9c4; color:#a83c32; }
+  .msg.ok{ background:#eaf6f0; border:1px solid #bfe3d1; color:#2f8a5f; }
+  .msg.warn{ background:#fdf6e3; border:1px solid #f0dfa8; color:#9c7415; }
+  .msg.info{ background:#eef0f5; border:1px solid #d7dbe6; color:#5b6472; }
+
+  #globalMsg{ margin-bottom:20px; }
+  #globalMsg .msg{ font-size:13.5px; padding:14px 18px; margin-top:0; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  #globalMsg .msg .x{ cursor:pointer; opacity:.6; }
+  #globalMsg .msg .x:hover{ opacity:1; }
+
+  table{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px; margin-top:6px; }
+  th{ text-align:left; color:var(--muted); font-weight:500; padding:8px 10px; border-bottom:1px solid var(--line); text-transform:uppercase; font-size:10.5px; letter-spacing:.05em; }
+  td{ padding:7px 10px; border-bottom:1px solid #eeece0; color:var(--text); }
+  tr:hover td{ background:var(--panel-2); }
+
+  .stat-row{ display:flex; gap:24px; flex-wrap:wrap; margin-top:4px; }
+  .stat .v{ font-family:var(--sans); font-weight:600; font-size:22px; color:var(--accent); }
+  .stat .l{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+
+  .lote-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 14px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px;
+    font-family:var(--mono); font-size:12px; margin-bottom:8px;
+  }
+  .lote-item .l-name{ color:var(--text); }
+  .lote-item .l-meta{ color:var(--muted); }
+  .empty{ color:var(--muted); font-size:13px; font-style:italic; padding:8px 2px; font-family:var(--sans); }
+
+  .brand-stripe{ display:flex; height:5px; border-radius:3px; overflow:hidden; margin:14px 0; }
+  .brand-stripe span{ flex:1; }
+  .brand-stripe span:nth-child(1){ background:var(--brand-navy); }
+  .brand-stripe span:nth-child(2){ background:var(--brand-teal); }
+  .brand-stripe span:nth-child(3){ background:var(--brand-magenta); }
+  .brand-stripe span:nth-child(4){ background:var(--brand-orange); }
+  .brand-stripe span:nth-child(5){ background:var(--brand-lime); }
+
+  .gate-header{ border-radius:16px; overflow:hidden; margin-bottom:16px; box-shadow:0 4px 18px rgba(49,69,114,.14); }
+  .gate-header img{ width:100%; display:block; }
+
+  /* GATE */
+  .gate-wrap{ max-width:360px; margin:16vh auto 0; text-align:center; }
+  .gate-wrap input{ text-align:center; letter-spacing:.05em; }
+  .gate-wrap .btn{ margin-top:14px; }
+  .gate-label{ color:var(--muted); font-size:13.5px; margin-bottom:16px; }
+
+  /* PEDIDO (gerente) */
+  .manager-wrap{ max-width:460px; margin:4vh auto 0; }
+  .manager-header{
+    position:relative; border-radius:18px; overflow:hidden; height:170px; margin-bottom:10px;
+    box-shadow: 0 4px 18px rgba(49,69,114,.12);
+  }
+  .manager-header img{ width:100%; height:100%; object-fit:cover; object-position:50% 22%; display:block; }
+  .manager-header-overlay{
+    position:absolute; inset:0;
+    background: linear-gradient(180deg, rgba(49,69,114,.05) 0%, rgba(49,69,114,.75) 100%);
+    display:flex; align-items:flex-end; padding:16px 18px;
+  }
+  .manager-header-title{ color:#fff; font-weight:600; font-size:22px; letter-spacing:.02em; }
+
+  .manager-banner{
+    display:flex; align-items:center; gap:14px; width:100%;
+    background:#efe9dc; border-radius:16px; padding:16px 18px; margin:0 0 18px;
+  }
+  .manager-banner-icon{
+    width:42px; height:42px; border-radius:50%; border:1.5px solid var(--brand-navy);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .manager-banner-icon svg{ width:20px; height:20px; }
+  .manager-banner-txt strong{ display:block; font-weight:600; color:var(--brand-navy); font-size:13px; line-height:1.35; }
+  .manager-banner-txt span{ display:block; color:var(--muted); font-size:11px; margin-top:4px; line-height:1.4; }
+
+  .manager-confirm{ text-align:center; padding:44px 20px; }
+  .manager-confirm .big{ font-size:42px; margin-bottom:10px; }
+
+  @media (max-width:480px){
+    .gate-wrap{ margin-top:10vh; }
+    .manager-header{ height:130px; }
+    .manager-header-title{ font-size:19px; }
+    .manager-banner{ padding:12px 14px; gap:10px; }
+    .manager-banner-icon{ width:34px; height:34px; }
+    .manager-banner-icon svg{ width:16px; height:16px; }
+    .manager-banner-txt strong{ font-size:12px; }
+    .manager-banner-txt span{ font-size:10.5px; }
+  }
+
+  /* BACKLOG */
+  .pedido-item{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:12px;
+    padding:14px 16px; margin-bottom:10px; font-family:var(--sans); font-size:13px;
+    display:flex; gap:12px; align-items:flex-start;
+  }
+  .pedido-item.selected{ border-color:var(--accent-soft); background:#f2efe0; }
+  .pedido-check{ margin-top:3px; width:17px; height:17px; flex-shrink:0; accent-color:var(--accent); cursor:pointer; }
+  .pedido-body{ flex:1; min-width:0; }
+  .pedido-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+  .pedido-loja{ color:var(--text); font-size:13.5px; font-weight:600; }
+  .pedido-meta{ color:var(--muted); margin-top:4px; font-family:var(--mono); font-size:11.5px; }
+  .badge{ font-family:var(--sans); font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; padding:3px 8px; border-radius:10px; flex-shrink:0; }
+  .badge.pendente{ background:rgba(226,123,55,.14); color:#b5601f; }
+  .badge.em_andamento{ background:rgba(106,174,195,.18); color:#2f6a80; }
+  .badge.concluido{ background:rgba(76,175,125,.16); color:#2f8a5f; }
+  .pedido-actions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+
+  footer{ text-align:center; margin-top:36px; color:var(--muted); font-size:11px; font-family:var(--sans); }
+</style>
+</head>
+<body>
+
+<!-- ===================== GATE ===================== -->
+<div class="wrap" id="gateView">
+  <div class="gate-wrap">
+    <div class="gate-header">
+      <img src="gate-header.jpg" alt="TACO Laço Jeans">
+    </div>
+    <div class="eyebrow">TACO · CRM</div>
+    <h1 style="margin-bottom:2px;">Encarteiramento</h1>
+    <div class="brand-stripe"><span></span><span></span><span></span><span></span><span></span></div>
+    <div class="gate-label">Digite o seu código de gerente para continuar</div>
+    <input type="text" id="gateInput" autocomplete="off" autocapitalize="off">
+    <button class="btn wide" id="gateBtn">Entrar</button>
+    <div id="gateMsg"></div>
+  </div>
+</div>
+
+<!-- ===================== FORM DO GERENTE ===================== -->
+<div class="wrap" id="managerView" style="display:none;">
+  <div class="manager-wrap">
+    <div class="manager-header">
+      <img src="taco-header.jpg" alt="Loja TACO">
+      <div class="manager-header-overlay">
+        <div class="manager-header-title">TACO</div>
+      </div>
+    </div>
+    <div class="manager-banner">
+      <div class="manager-banner-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#314572" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 11l18-5v12L3 13v-2z"></path>
+          <path d="M11.6 16.5L13 21h-2.5l-2-4.5"></path>
+        </svg>
+      </div>
+      <div class="manager-banner-txt">
+        <strong>Use o código de vendedor nas redes sociais e fortaleça nossa omnicanalidade.</strong>
+        <span>Mais alcance para nossa marca, mais resultados para todos.</span>
+      </div>
+    </div>
+
+    <header style="margin-top:14px;">
+      <div class="eyebrow">Pedido de encarteiramento</div>
+      <h1 style="font-size:22px; margin-top:4px;">Peça a distribuição de clientes</h1>
+      <div class="sub">Preenche os dados abaixo e o time de CRM vai gerar a distribuição dos clientes pros seus vendedores.</div>
+    </header>
+
+    <div id="meusPedidosPanel" class="panel" style="display:none;">
+      <div style="font-weight:600; font-size:13px; color:var(--brand-navy); margin-bottom:10px;">Pedidos anteriores da sua loja</div>
+      <div id="meusPedidosList"></div>
+    </div>
+
+    <div id="managerFormWrap" class="panel">
+      <div class="grid" style="grid-template-columns:1fr;">
+        <div>
+          <label>Nome da loja</label>
+          <input type="text" id="mLojaNome" placeholder="ex: Botafogo">
+        </div>
+        <div>
+          <label>Código da loja</label>
+          <input type="text" id="mLojaCodigo" maxlength="4" placeholder="1170">
+        </div>
+        <div>
+          <label>Quantidade de vendedores</label>
+          <input type="number" id="mQtdVendedores" min="1" max="30" value="1">
+        </div>
+        <div>
+          <label>Códigos dos vendedores (separados por vírgula)</label>
+          <input type="text" id="mCodigosVendedores" placeholder="L685, N792, M960">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn wide" id="mSubmitBtn">Enviar pedido</button>
+      </div>
+      <div id="managerMsg"></div>
+    </div>
+
+    <div id="managerConfirm" class="panel manager-confirm" style="display:none;">
+      <div class="big">✓</div>
+      <div style="font-size:16px; color:var(--brand-navy); font-weight:600; margin-bottom:6px;">Pedido enviado!</div>
+      <div style="color:var(--brand-muted); font-size:13.5px;">O time de CRM vai providenciar a distribuição dos clientes em breve.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CONSOLE ADMIN ===================== -->
+<div class="wrap" id="adminView" style="display:none;">
+
+  <header>
+    <div class="eyebrow">CRM Ops · Dito</div>
+    <h1>Encarteiramento Flexível</h1>
+    <div class="sub">Sobe a segmentação de uma loja, informa vendedores, gera o lote. Adiciona quantas lojas quiser na mesma sessão antes de exportar tudo junto.</div>
+    <div class="configbar">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">conectando ao backend…</span>
+    </div>
+  </header>
+
+  <div id="globalMsg"></div>
+
+  <div class="panel">
+    <h2><span class="n">·</span> Identificação</h2>
+    <div class="grid">
+      <div>
+        <label>Seu nome</label>
+        <input type="text" id="usuarioNome" placeholder="ex: Pedro">
+      </div>
+    </div>
+  </div>
+
+  <!-- BACKLOG DE PEDIDOS -->
+  <div class="panel">
+    <h2><span class="n">·</span> Backlog de pedidos <span style="margin-left:auto; cursor:pointer; color:var(--accent); font-family:var(--sans); font-size:11.5px; font-weight:600;" id="btnRefreshPedidos">↻ atualizar</span></h2>
+    <div id="pedidosList" style="margin-top:14px;"></div>
+    <div class="actions">
+      <button class="btn secondary" id="btnMesclarPedidos" disabled>Mesclar selecionados →</button>
+    </div>
+  </div>
+
+  <!-- BLOCOS DE LOJA (dinâmicos) -->
+  <div id="blocksContainer"></div>
+
+  <div class="actions" style="margin-bottom:20px;">
+    <button class="btn secondary wide" id="btnAddBlock">+ Adicionar loja</button>
+  </div>
+
+  <!-- PENDENTES -->
+  <div class="panel" id="sessionPanel">
+    <h2><span class="n">·</span> Pendentes (ainda não exportados) <span style="margin-left:auto; cursor:pointer; color:var(--accent); font-family:var(--sans); font-size:11.5px; font-weight:600;" id="btnRefresh">↻ atualizar</span></h2>
+    <div id="lotesList" style="margin-top:14px;"></div>
+    <div class="stat-row" id="statRow"></div>
+    <div id="dupWarning"></div>
+
+    <div class="actions">
+      <button class="btn" id="btnDownload">Baixar Excel‑chave (pendentes) e marcar como exportado</button>
+      <button class="btn secondary" id="btnPreview">Ver prévia</button>
+    </div>
+
+    <div id="previewWrap" style="margin-top:18px; display:none;">
+      <table id="previewTable">
+        <thead><tr><th>reference</th><th>Store_ID</th><th>Seller_ID</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="field-hint" style="margin-top:8px;">Mostrando as primeiras 15 linhas pendentes.</div>
+    </div>
+  </div>
+
+  <footer>gera arquivo .csv delimitado por ; · UTF‑8 com BOM · estado compartilhado via Google Sheets</footer>
+</div>
+
+<script>
+// ==== CONFIG ====
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwDN1dINeHs64CGX1JDG1d3MtP_hPX2m4pHSR2dzJJOSwueCuPNQHPYFHB0VSS0IQQhdg/exec";
+const GATE_CODE = "crmtaco"; // troca aqui se quiser outra "senha"
+
+let allRows = [];
+let pedidos = [];
+let pedidosSelecionados = new Set();
+let pedidosEmEdicao = new Set();
+let lojaValidada = null;
+let blocks = [];
+let blockSeq = 0;
+
+// ---------------- NAVEGAÇÃO (gate / gerente / admin) ----------------
+const gateView = document.getElementById('gateView');
+const managerView = document.getElementById('managerView');
+const adminView = document.getElementById('adminView');
+const gateInput = document.getElementById('gateInput');
+let adminInitialized = false;
+
+function showView(view){
+  gateView.style.display = view === 'gate' ? 'block' : 'none';
+  managerView.style.display = view === 'manager' ? 'block' : 'none';
+  adminView.style.display = view === 'admin' ? 'block' : 'none';
+  if (view === 'admin' && !adminInitialized){
+    adminInitialized = true;
+    initAdmin();
+  }
+}
+
+function tryGate(){
+  const rawVal = gateInput.value.trim();
+  const val = rawVal.toLowerCase();
+  const gateMsg = document.getElementById('gateMsg');
+  const gateBtn = document.getElementById('gateBtn');
+
+  if (val === GATE_CODE){
+    gateMsg.innerHTML = '';
+    history.pushState({ view: 'admin' }, '', '#admin');
+    showView('admin');
+    return;
+  }
+
+  const codigo = rawVal.replace(/\D/g,'');
+  if (!codigo){
+    gateMsg.innerHTML = `<div class="msg err">Código não reconhecido. Confere com sua gerência.</div>`;
+    return;
+  }
+
+  gateBtn.disabled = true;
+  gateMsg.innerHTML = `<div class="msg info">Verificando…</div>`;
+
+  getAction(`action=validarLoja&codigo=${codigo}`).then(resp => {
+    gateBtn.disabled = false;
+    if (resp && resp.valid){
+      gateMsg.innerHTML = '';
+      lojaValidada = { nome: resp.nome, codigo: resp.codigo };
+      prepararFormularioGerente(lojaValidada);
+      history.pushState({ view: 'manager' }, '', '#manager');
+      showView('manager');
+    } else {
+      gateMsg.innerHTML = `<div class="msg err">Código não reconhecido. Confere com sua gerência.</div>`;
+    }
+  }).catch(err => {
+    gateBtn.disabled = false;
+    gateMsg.innerHTML = `<div class="msg err">Não consegui verificar agora (${err.message}). Tenta de novo.</div>`;
+  });
+}
+document.getElementById('gateBtn').addEventListener('click', tryGate);
+gateInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryGate(); });
+
+window.addEventListener('popstate', (e) => {
+  const view = (e.state && e.state.view) || 'gate';
+  if (view === 'gate'){ gateInput.value = ''; document.getElementById('gateMsg').innerHTML = ''; }
+  showView(view);
+});
+
+history.replaceState({ view: 'gate' }, '', location.pathname);
+showView('gate');
+
+// ---------------- BACKEND (compartilhado) ----------------
+async function postAction(payload){
+  const res = await fetch(SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+async function getAction(params){
+  const res = await fetch(`${SCRIPT_URL}?${params}`);
+  return res.json();
+}
+
+// ---------------- FORM DO GERENTE ----------------
+function prepararFormularioGerente(loja){
+  const nomeInput = document.getElementById('mLojaNome');
+  const codInput = document.getElementById('mLojaCodigo');
+  nomeInput.value = loja.nome;
+  codInput.value = loja.codigo;
+  nomeInput.readOnly = true;
+  codInput.readOnly = true;
+  nomeInput.style.background = '#f4f1e6';
+  codInput.style.background = '#f4f1e6';
+
+  document.getElementById('mQtdVendedores').value = 1;
+  document.getElementById('mCodigosVendedores').value = '';
+  document.getElementById('managerMsg').innerHTML = '';
+  document.getElementById('managerFormWrap').style.display = 'block';
+  document.getElementById('managerConfirm').style.display = 'none';
+
+  fetchMeusPedidos(loja.codigo);
+}
+
+async function fetchMeusPedidos(codigo){
+  const panel = document.getElementById('meusPedidosPanel');
+  const list = document.getElementById('meusPedidosList');
+  try{
+    const data = await getAction(`action=getPedidos&lojaCodigo=${codigo}`);
+    const rows = data.rows || [];
+    if (!rows.length){ panel.style.display = 'none'; return; }
+    const ordenados = rows.slice().sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+    list.innerHTML = ordenados.map(p => `
+      <div class="pedido-item" style="align-items:center;">
+        <div class="pedido-body">
+          <div class="pedido-top">
+            <div>
+              <div class="pedido-meta">${p.qtd_vendedores} vendedor(es): ${p.codigos_vendedores}</div>
+              <div class="pedido-meta">${new Date(p.timestamp).toLocaleString('pt-BR')}</div>
+            </div>
+            <span class="badge ${p.status}">${p.status.replace('_',' ')}</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    panel.style.display = 'block';
+  }catch(err){
+    panel.style.display = 'none';
+  }
+}
+
+document.getElementById('mSubmitBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('managerMsg');
+  const lojaNome = document.getElementById('mLojaNome').value.trim();
+  const lojaCodigo = document.getElementById('mLojaCodigo').value.trim().replace(/\D/g,'');
+  const qtd = document.getElementById('mQtdVendedores').value;
+  const codigos = document.getElementById('mCodigosVendedores').value.trim();
+
+  if (!lojaNome || !lojaCodigo || !qtd || !codigos){
+    msg.innerHTML = `<div class="msg err">Preenche todos os campos antes de enviar.</div>`;
+    return;
+  }
+
+  const btn = document.getElementById('mSubmitBtn');
+  btn.disabled = true;
+  msg.innerHTML = `<div class="msg info">Enviando…</div>`;
+  try{
+    const resp = await postAction({
+      action: 'submitPedido',
+      lojaNome, lojaCodigo, qtdVendedores: qtd, codigosVendedores: codigos
+    });
+    if (resp && resp.ok){
+      document.getElementById('managerFormWrap').style.display = 'none';
+      document.getElementById('managerConfirm').style.display = 'block';
+    } else if (resp && resp.erro === 'duplicado'){
+      msg.innerHTML = `<div class="msg err">${resp.mensagem}</div>`;
+      btn.disabled = false;
+    } else {
+      throw new Error((resp && resp.mensagem) || 'resposta inesperada');
+    }
+  }catch(err){
+    msg.innerHTML = `<div class="msg err">Não consegui enviar (${err.message}). Tenta de novo.</div>`;
+    btn.disabled = false;
+  }
+});
+
+// ================================================================
+// ==================== CONSOLE ADMIN ============================
+// ================================================================
+function initAdmin(){
+  const usuarioNome = document.getElementById('usuarioNome');
+  usuarioNome.value = localStorage.getItem('encarteiramento_usuario') || '';
+  usuarioNome.addEventListener('input', () => localStorage.setItem('encarteiramento_usuario', usuarioNome.value));
+
+  document.getElementById('btnAddBlock').addEventListener('click', addBlock);
+  document.getElementById('btnRefreshPedidos').addEventListener('click', fetchPedidos);
+  document.getElementById('btnMesclarPedidos').addEventListener('click', mesclarPedidos);
+  document.getElementById('btnRefresh').addEventListener('click', fetchState);
+  document.getElementById('btnPreview').addEventListener('click', togglePreview);
+  document.getElementById('btnDownload').addEventListener('click', downloadPendentes);
+
+  addBlock();
+  fetchState();
+  fetchPedidos();
+}
+
+function showGlobalMsg(type, text){
+  const globalMsg = document.getElementById('globalMsg');
+  globalMsg.innerHTML = `<div class="msg ${type}"><span>${text}</span><span class="x">✕</span></div>`;
+  globalMsg.querySelector('.x').addEventListener('click', () => globalMsg.innerHTML = '');
+  globalMsg.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function fetchState(){
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  try{
+    const data = await getAction('action=getState');
+    allRows = data.rows || [];
+    statusDot.className = 'dot ok';
+    statusText.textContent = `conectado · ${allRows.length.toLocaleString('pt-BR')} registros na planilha`;
+    renderSession();
+  }catch(err){
+    statusDot.className = 'dot';
+    statusText.textContent = 'erro ao conectar no backend: ' + err.message;
+  }
+}
+
+function padCPF(raw){
+  const digits = String(raw).replace(/\D/g,'');
+  return digits.padStart(11,'0');
+}
+function shuffle(arr){
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ---------------- BACKLOG ----------------
+async function fetchPedidos(){
+  try{
+    const data = await getAction('action=getPedidos');
+    pedidos = data.rows || [];
+    renderPedidos();
+  }catch(err){
+    document.getElementById('pedidosList').innerHTML = `<div class="msg err">Erro ao carregar pedidos: ${err.message}</div>`;
+  }
+}
+
+function renderPedidos(){
+  const list = document.getElementById('pedidosList');
+  const ordenados = pedidos.slice().sort((a,b) => {
+    const ordem = { pendente: 0, em_andamento: 1, concluido: 2 };
+    return (ordem[a.status] ?? 0) - (ordem[b.status] ?? 0) || new Date(a.timestamp) - new Date(b.timestamp);
+  });
+  if (!ordenados.length){
+    list.innerHTML = `<div class="empty">Nenhum pedido no backlog ainda.</div>`;
+    atualizarBotaoMesclar();
+    return;
+  }
+  list.innerHTML = ordenados.map(p => {
+    if (pedidosEmEdicao.has(p.id)){
+      return `
+        <div class="pedido-item">
+          <div style="width:17px;flex-shrink:0;"></div>
+          <div class="pedido-body">
+            <div class="grid" style="grid-template-columns:1fr 1fr; gap:10px;">
+              <div><label>Nome da loja</label><input type="text" class="editLojaNome" value="${p.loja_nome}"></div>
+              <div><label>Código da loja</label><input type="text" class="editLojaCodigo" maxlength="4" value="${p.loja_codigo}"></div>
+              <div><label>Qtd vendedores</label><input type="number" class="editQtd" value="${p.qtd_vendedores}"></div>
+              <div><label>Códigos (vírgula)</label><input type="text" class="editCodigos" value="${p.codigos_vendedores}"></div>
+            </div>
+            <div class="pedido-actions">
+              <button class="btn small" data-salvar-pedido="${p.id}">Salvar</button>
+              <button class="btn small secondary" data-cancelar-edicao="${p.id}">Cancelar</button>
+            </div>
+          </div>
+        </div>`;
+    }
+    return `
+    <div class="pedido-item ${pedidosSelecionados.has(p.id) ? 'selected' : ''}">
+      ${p.status !== 'concluido' ? `<input type="checkbox" class="pedido-check" data-check-pedido="${p.id}" ${pedidosSelecionados.has(p.id) ? 'checked' : ''}>` : '<div style="width:17px;flex-shrink:0;"></div>'}
+      <div class="pedido-body">
+        <div class="pedido-top">
+          <div>
+            <div class="pedido-loja">${p.loja_nome} <span style="color:var(--muted)">— ${p.loja_codigo}</span></div>
+            <div class="pedido-meta">${p.qtd_vendedores} vendedor(es): ${p.codigos_vendedores}</div>
+            <div class="pedido-meta">${new Date(p.timestamp).toLocaleString('pt-BR')}</div>
+          </div>
+          <span class="badge ${p.status}">${p.status.replace('_',' ')}</span>
+        </div>
+        <div class="pedido-actions">
+          ${p.status !== 'concluido' ? `<button class="btn small" data-use-pedido="${p.id}">Usar esse pedido →</button>` : ''}
+          <button class="btn small secondary" data-editar-pedido="${p.id}">Editar</button>
+          ${p.status === 'pendente' ? `<button class="btn small secondary" data-mark-andamento="${p.id}">Marcar em andamento</button>` : ''}
+          ${p.status !== 'concluido' ? `<button class="btn small secondary" data-mark-concluido="${p.id}">Marcar concluído</button>` : `<button class="btn small secondary" data-reabrir="${p.id}">Reabrir</button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('[data-editar-pedido]').forEach(btn => {
+    btn.addEventListener('click', () => { pedidosEmEdicao.add(btn.dataset.editarPedido); renderPedidos(); });
+  });
+  list.querySelectorAll('[data-cancelar-edicao]').forEach(btn => {
+    btn.addEventListener('click', () => { pedidosEmEdicao.delete(btn.dataset.cancelarEdicao); renderPedidos(); });
+  });
+  list.querySelectorAll('[data-salvar-pedido]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.salvarPedido;
+      const card = btn.closest('.pedido-item');
+      const loja_nome = card.querySelector('.editLojaNome').value.trim();
+      const loja_codigo = card.querySelector('.editLojaCodigo').value.trim().replace(/\D/g,'');
+      const qtd_vendedores = card.querySelector('.editQtd').value;
+      const codigos_vendedores = card.querySelector('.editCodigos').value.trim();
+      try{
+        await postAction({ action: 'updatePedido', id, loja_nome, loja_codigo, qtd_vendedores, codigos_vendedores });
+        pedidosEmEdicao.delete(id);
+        await fetchPedidos();
+      }catch(err){
+        showGlobalMsg('err', `Erro ao salvar edição do pedido: ${err.message}`);
+      }
+    });
+  });
+
+  list.querySelectorAll('[data-check-pedido]').forEach(chk => {
+    chk.addEventListener('change', () => {
+      const id = chk.dataset.checkPedido;
+      if (chk.checked) pedidosSelecionados.add(id); else pedidosSelecionados.delete(id);
+      chk.closest('.pedido-item').classList.toggle('selected', chk.checked);
+      atualizarBotaoMesclar();
+    });
+  });
+  list.querySelectorAll('[data-use-pedido]').forEach(btn => {
+    btn.addEventListener('click', () => usePedido(btn.dataset.usePedido));
+  });
+  list.querySelectorAll('[data-mark-andamento]').forEach(btn => {
+    btn.addEventListener('click', () => setPedidoStatus(btn.dataset.markAndamento, 'em_andamento'));
+  });
+  list.querySelectorAll('[data-mark-concluido]').forEach(btn => {
+    btn.addEventListener('click', () => setPedidoStatus(btn.dataset.markConcluido, 'concluido'));
+  });
+  list.querySelectorAll('[data-reabrir]').forEach(btn => {
+    btn.addEventListener('click', () => setPedidoStatus(btn.dataset.reabrir, 'pendente'));
+  });
+
+  atualizarBotaoMesclar();
+}
+
+function atualizarBotaoMesclar(){
+  const btn = document.getElementById('btnMesclarPedidos');
+  if (!btn) return;
+  const n = pedidosSelecionados.size;
+  btn.disabled = n < 2;
+  btn.textContent = n >= 2 ? `Mesclar ${n} pedidos selecionados →` : 'Mesclar selecionados →';
+}
+
+async function setPedidoStatus(id, status){
+  try{
+    const usuario = document.getElementById('usuarioNome').value.trim() || 'desconhecido';
+    await postAction({ action: 'updatePedidoStatus', id, status, atendidoPor: usuario });
+    await fetchPedidos();
+  }catch(err){
+    showGlobalMsg('err', `Erro ao atualizar o pedido: ${err.message}`);
+  }
+}
+
+function usePedido(id){
+  const p = pedidos.find(x => x.id === id);
+  if (!p) return;
+  const block = addBlock();
+  block.pedidoIds = [id];
+
+  block.lojaCodeInput.value = String(p.loja_codigo).replace(/\D/g,'').slice(0,4);
+  block.lojaCodeInput.dispatchEvent(new Event('input'));
+
+  block.qtdInput.value = p.qtd_vendedores || 1;
+  block.qtdInput.dispatchEvent(new Event('input'));
+
+  const codes = String(p.codigos_vendedores).split(',').map(c => c.trim()).filter(Boolean);
+  const vendorInputs = block.vendorsWrap.querySelectorAll('.vendorCode');
+  vendorInputs.forEach((inp, i) => { if (codes[i]) inp.value = codes[i]; });
+
+  block.loteMsg.innerHTML = `<div class="msg info">Pré-preenchido a partir do pedido de "${p.loja_nome}". Falta só subir o CSV da segmentação.</div>`;
+
+  setPedidoStatus(id, 'em_andamento');
+  block.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function mesclarPedidos(){
+  const selecionados = pedidos.filter(p => pedidosSelecionados.has(p.id));
+  if (selecionados.length < 2) return;
+
+  // junta todos os códigos de vendedor de todos os pedidos selecionados, sem repetir
+  const codesSet = new Set();
+  selecionados.forEach(p => {
+    String(p.codigos_vendedores).split(',').map(c => c.trim()).filter(Boolean).forEach(c => codesSet.add(c));
+  });
+  const codes = Array.from(codesSet);
+
+  const block = addBlock();
+  block.pedidoIds = selecionados.map(p => p.id);
+
+  // código da loja vem do primeiro pedido selecionado — confere/ajusta se os pedidos forem de lojas diferentes
+  const lojasDistintas = new Set(selecionados.map(p => String(p.loja_codigo).replace(/\D/g,'')));
+  block.lojaCodeInput.value = String(selecionados[0].loja_codigo).replace(/\D/g,'').slice(0,4);
+  block.lojaCodeInput.dispatchEvent(new Event('input'));
+
+  block.qtdInput.value = codes.length || 1;
+  block.qtdInput.dispatchEvent(new Event('input'));
+
+  const vendorInputs = block.vendorsWrap.querySelectorAll('.vendorCode');
+  vendorInputs.forEach((inp, i) => { if (codes[i]) inp.value = codes[i]; });
+
+  const lojasTexto = selecionados.map(p => `${p.loja_nome} (${p.loja_codigo})`).join(', ');
+  block.loteMsg.innerHTML = lojasDistintas.size > 1
+    ? `<div class="msg warn">⚠ Mesclado a partir de ${selecionados.length} pedidos de lojas DIFERENTES: ${lojasTexto}. Confere o código da loja antes de gerar — preenchi com o do primeiro pedido.</div>`
+    : `<div class="msg info">Mesclado a partir de ${selecionados.length} pedidos de "${selecionados[0].loja_nome}". Falta só subir o CSV da segmentação.</div>`;
+
+  selecionados.forEach(p => setPedidoStatus(p.id, 'em_andamento'));
+
+  pedidosSelecionados.clear();
+  block.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ---------------- BLOCOS DE LOJA ----------------
+function addBlock(){
+  const id = ++blockSeq;
+  const block = { id, cpfList: [], fileName: '', pedidoIds: [] };
+
+  const el = document.createElement('div');
+  el.className = 'panel block-panel';
+  el.innerHTML = `
+    <div class="block-head">
+      <h2><span class="n block-index"></span></h2>
+      <span class="block-remove">remover</span>
+    </div>
+
+    <div class="drop">
+      <input type="file" accept=".csv" class="fileInput">
+      <div class="icon">↑</div>
+      <div class="txt">Arraste o CSV desta loja ou clique pra escolher</div>
+      <div class="sm">Coluna com "ID=CPF" é detectada automaticamente</div>
+    </div>
+    <div class="fileInfo" style="margin-top:14px;"></div>
+
+    <div class="grid">
+      <div>
+        <label>Código da loja (4 dígitos)</label>
+        <input type="text" class="lojaCode" maxlength="4" placeholder="1170">
+        <div class="field-hint">Vira <span class="storePreview">00XXXX</span> na tabela‑chave</div>
+      </div>
+      <div>
+        <label>Quantidade de vendedores</label>
+        <input type="number" class="qtdVendedores" min="1" max="30" value="1">
+      </div>
+    </div>
+
+    <div class="vendors"></div>
+
+    <div class="actions">
+      <button class="btn btnGerarLote">Gerar encarteiramento desta loja →</button>
+    </div>
+    <div class="loteMsg"></div>
+  `;
+  document.getElementById('blocksContainer').appendChild(el);
+
+  block.el = el;
+  block.dropzone = el.querySelector('.drop');
+  block.fileInput = el.querySelector('.fileInput');
+  block.fileInfo = el.querySelector('.fileInfo');
+  block.lojaCodeInput = el.querySelector('.lojaCode');
+  block.storePreview = el.querySelector('.storePreview');
+  block.qtdInput = el.querySelector('.qtdVendedores');
+  block.vendorsWrap = el.querySelector('.vendors');
+  block.loteMsg = el.querySelector('.loteMsg');
+  block.btnGerar = el.querySelector('.btnGerarLote');
+
+  block.dropzone.addEventListener('click', () => block.fileInput.click());
+  block.dropzone.addEventListener('dragover', e => { e.preventDefault(); block.dropzone.classList.add('drag'); });
+  block.dropzone.addEventListener('dragleave', () => block.dropzone.classList.remove('drag'));
+  block.dropzone.addEventListener('drop', e => {
+    e.preventDefault(); block.dropzone.classList.remove('drag');
+    if (e.dataTransfer.files.length) handleBlockFile(block, e.dataTransfer.files[0]);
+  });
+  block.fileInput.addEventListener('change', e => {
+    if (e.target.files.length) handleBlockFile(block, e.target.files[0]);
+  });
+
+  block.lojaCodeInput.addEventListener('input', () => {
+    const v = block.lojaCodeInput.value.replace(/\D/g,'').slice(0,4);
+    block.lojaCodeInput.value = v;
+    block.storePreview.textContent = v ? '00' + v.padStart(4,'0') : '00XXXX';
+  });
+
+  block.qtdInput.addEventListener('input', () => renderBlockVendorFields(block));
+  block.el.querySelector('.block-remove').addEventListener('click', () => removeBlock(block));
+  block.btnGerar.addEventListener('click', () => gerarLoteDoBloco(block));
+
+  blocks.push(block);
+  renderBlockVendorFields(block);
+  renumberBlocks();
+  return block;
+}
+
+function renumberBlocks(){
+  blocks.forEach((b, i) => { b.el.querySelector('.block-index').textContent = `Loja ${i + 1}`; });
+}
+
+function removeBlock(block){
+  block.el.remove();
+  blocks = blocks.filter(b => b.id !== block.id);
+  renumberBlocks();
+  if (!blocks.length) addBlock();
+}
+
+function handleBlockFile(block, file){
+  block.fileName = file.name;
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results){
+      const rows = results.data;
+      const fields = results.meta.fields || [];
+      if (!rows.length){
+        block.fileInfo.innerHTML = `<div class="msg err">Arquivo vazio ou ilegível.</div>`;
+        return;
+      }
+      let idCol = fields.find(f => f.toLowerCase() === 'user_id');
+      if (!idCol || !String(rows[0][idCol]||'').startsWith('ID=')){
+        idCol = fields.find(f => String(rows[0][f]||'').trim().startsWith('ID='));
+      }
+      if (!idCol){
+        block.fileInfo.innerHTML = `<div class="msg err">Não encontrei nenhuma coluna com o padrão "ID=CPF". Verifica se é mesmo um export da Dito.</div>`;
+        return;
+      }
+      block.cpfList = rows
+        .map(r => r[idCol])
+        .filter(v => v !== undefined && v !== null && String(v).trim() !== '')
+        .map(v => padCPF(String(v).replace(/^ID=/i,'')));
+
+      const historicSet = new Set(allRows.map(r => String(r.reference)));
+      const jaCarteirizados = block.cpfList.filter(c => historicSet.has(c));
+
+      block.fileInfo.innerHTML = `
+        <div class="filecard">
+          <div>
+            <div class="name">${block.fileName}</div>
+            <div class="meta">coluna detectada: "${idCol}" · ${block.cpfList.length.toLocaleString('pt-BR')} CPFs extraídos</div>
+          </div>
+          <div class="clear">remover</div>
+        </div>
+        ${jaCarteirizados.length ? `<div class="msg warn">⚠ ${jaCarteirizados.length.toLocaleString('pt-BR')} destes CPFs já aparecem em algum lote anterior na planilha (pode ser realocação — confere se é intencional).</div>` : ''}
+      `;
+      block.fileInfo.querySelector('.clear').addEventListener('click', () => {
+        block.cpfList = []; block.fileName = '';
+        block.fileInput.value = ''; block.fileInfo.innerHTML = '';
+      });
+    },
+    error: function(err){
+      block.fileInfo.innerHTML = `<div class="msg err">Erro ao ler CSV: ${err.message}</div>`;
+    }
+  });
+}
+
+function renderBlockVendorFields(block){
+  let n = parseInt(block.qtdInput.value) || 1;
+  n = Math.max(1, Math.min(30, n));
+  block.qtdInput.value = n;
+  const existing = block.vendorsWrap.querySelectorAll('.vendor-row input');
+  const prevValues = Array.from(existing).map(i => i.value);
+  block.vendorsWrap.innerHTML = '';
+  for (let i = 0; i < n; i++){
+    const row = document.createElement('div');
+    row.className = 'vendor-row';
+    row.innerHTML = `
+      <div class="tag">vendedor ${i+1}</div>
+      <input type="text" class="vendorCode" placeholder="ex: 1835" value="${prevValues[i] || ''}">`;
+    block.vendorsWrap.appendChild(row);
+  }
+}
+
+async function gerarLoteDoBloco(block){
+  block.loteMsg.innerHTML = '';
+  if (!block.cpfList.length){
+    block.loteMsg.innerHTML = `<div class="msg err">Sobe um arquivo de segmentação primeiro.</div>`;
+    return;
+  }
+  const lojaRaw = block.lojaCodeInput.value.trim();
+  if (!lojaRaw){
+    block.loteMsg.innerHTML = `<div class="msg err">Informa o código da loja.</div>`;
+    return;
+  }
+  const usuario = document.getElementById('usuarioNome').value.trim() || 'desconhecido';
+  const storeID = '00' + lojaRaw.padStart(4,'0');
+  const vendorInputs = Array.from(block.vendorsWrap.querySelectorAll('.vendorCode')).map(i => i.value.trim());
+  if (vendorInputs.some(v => !v)){
+    block.loteMsg.innerHTML = `<div class="msg err">Preenche o código de todos os vendedores.</div>`;
+    return;
+  }
+  const sellerIDs = vendorInputs.map(v => `${storeID}:${v}`);
+
+  const shuffledCPFs = shuffle(block.cpfList);
+  const shuffledVendorOrder = shuffle(sellerIDs.map((s,i) => i));
+  const nV = sellerIDs.length;
+  const base = Math.floor(shuffledCPFs.length / nV);
+  const remainder = shuffledCPFs.length % nV;
+  const extraSet = new Set(shuffledVendorOrder.slice(0, remainder));
+
+  let cursor = 0;
+  const rowsToSend = [];
+  for (let i = 0; i < nV; i++){
+    const qty = base + (extraSet.has(i) ? 1 : 0);
+    const slice = shuffledCPFs.slice(cursor, cursor + qty);
+    cursor += qty;
+    slice.forEach(cpf => rowsToSend.push({ reference: cpf, Store_ID: storeID, Seller_ID: sellerIDs[i] }));
+  }
+
+  const arquivoOrigem = block.fileName;
+  block.btnGerar.disabled = true;
+  block.loteMsg.innerHTML = `<div class="msg info">Gravando na planilha…</div>`;
+
+  try{
+    const resp = await postAction({ action: 'appendLote', usuario, arquivo: arquivoOrigem, lojaRef: storeID, rows: rowsToSend });
+    if (!resp || !resp.ok) throw new Error(resp && resp.error ? resp.error : 'resposta inesperada do backend');
+
+    await fetchState();
+
+    if (block.pedidoIds && block.pedidoIds.length){
+      for (const pid of block.pedidoIds) await setPedidoStatus(pid, 'concluido');
+    }
+
+    showGlobalMsg('ok', `✓ Loja ${storeID} — "${arquivoOrigem}": ${shuffledCPFs.length.toLocaleString('pt-BR')} clientes gravados e divididos entre ${nV} vendedor(es). Confirmado na planilha.`);
+    removeBlock(block);
+  }catch(err){
+    block.btnGerar.disabled = false;
+    showGlobalMsg('err', `✕ Erro ao gravar o lote da loja ${storeID} (arquivo "${arquivoOrigem}"): ${err.message}. Nada foi salvo — tenta de novo.`);
+  }
+}
+
+// ---------------- PENDENTES ----------------
+function renderSession(){
+  const lotesList = document.getElementById('lotesList');
+  const statRow = document.getElementById('statRow');
+  const dupWarning = document.getElementById('dupWarning');
+  const pending = allRows.filter(r => r.exportado === false || r.exportado === 'FALSE' || r.exportado === '');
+
+  if (!pending.length){
+    lotesList.innerHTML = `<div class="empty">Nenhum lote pendente. Tudo que foi gerado já está exportado.</div>`;
+    statRow.innerHTML = '';
+    dupWarning.innerHTML = '';
+    return;
+  }
+
+  const groups = {};
+  pending.forEach(r => {
+    const key = `${r.loja_ref}__${r.arquivo_origem}__${r.usuario}__${r.timestamp}`;
+    if (!groups[key]) groups[key] = { loja: r.loja_ref, arquivo: r.arquivo_origem, usuario: r.usuario, rows: [] };
+    groups[key].rows.push(r);
+  });
+
+  lotesList.innerHTML = Object.values(groups).map(g => {
+    const bySeller = {};
+    g.rows.forEach(r => { bySeller[r.Seller_ID] = (bySeller[r.Seller_ID]||0) + 1; });
+    const sellerSummary = Object.entries(bySeller).map(([s,q]) => `${s.split(':')[1]}: ${q}`).join(' · ');
+    return `
+      <div class="lote-item">
+        <div>
+          <div class="l-name">Loja ${g.loja} <span class="l-meta">— ${g.arquivo} · por ${g.usuario}</span></div>
+          <div class="l-meta">${sellerSummary}</div>
+        </div>
+        <div class="l-meta">${g.rows.length.toLocaleString('pt-BR')} clientes</div>
+      </div>`;
+  }).join('');
+
+  const totalClientes = pending.length;
+  const totalLojas = new Set(pending.map(r => r.loja_ref)).size;
+  const totalVendedores = new Set(pending.map(r => r.Seller_ID)).size;
+
+  statRow.innerHTML = `
+    <div class="stat"><div class="v">${totalClientes.toLocaleString('pt-BR')}</div><div class="l">clientes pendentes</div></div>
+    <div class="stat"><div class="v">${totalLojas}</div><div class="l">loja(s)</div></div>
+    <div class="stat"><div class="v">${totalVendedores}</div><div class="l">vendedor(es)</div></div>
+  `;
+
+  const seen = new Map(); const dups = new Set();
+  pending.forEach(r => { if (seen.has(r.reference)) dups.add(r.reference); seen.set(r.reference, true); });
+  dupWarning.innerHTML = dups.size
+    ? `<div class="msg warn">⚠ ${dups.size} CPF(s) aparecem em mais de um lote pendente (possível conflito entre vendedores). Confere antes de exportar.</div>`
+    : '';
+}
+
+function togglePreview(){
+  const previewWrap = document.getElementById('previewWrap');
+  const pending = allRows.filter(r => r.exportado === false || r.exportado === 'FALSE' || r.exportado === '');
+  const tbody = document.querySelector('#previewTable tbody');
+  tbody.innerHTML = pending.slice(0, 15).map(r => `
+    <tr><td>${r.reference}</td><td>${r.Store_ID}</td><td>${r.Seller_ID}</td></tr>
+  `).join('');
+  previewWrap.style.display = previewWrap.style.display === 'none' ? 'block' : 'none';
+}
+
+async function downloadPendentes(){
+  const pending = allRows.filter(r => r.exportado === false || r.exportado === 'FALSE' || r.exportado === '');
+  if (!pending.length){
+    showGlobalMsg('warn', 'Não tem nada pendente pra exportar.');
+    return;
+  }
+  const header = 'reference;Store_ID;Seller_ID';
+  const lines = pending.map(r => `${r.reference};${r.Store_ID};${r.Seller_ID}`);
+  const csv = '\uFEFF' + [header, ...lines].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  const filename = `excel_chave_encarteiramento_${stamp}.csv`;
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  try{
+    await postAction({ action: 'markAllExported' });
+    await fetchState();
+    showGlobalMsg('ok', `✓ Baixado "${filename}" com ${pending.length.toLocaleString('pt-BR')} clientes, e marcado como exportado na planilha.`);
+  }catch(err){
+    showGlobalMsg('warn', `Baixei o arquivo, mas não consegui marcar como exportado na planilha (${err.message}). Se gerar de novo, pode vir duplicado — confere antes de subir na Dito.`);
+  }
+}
+</script>
+</body>
+</html>
