@@ -832,13 +832,16 @@ function pendentesRows(){
   return allRows.filter(r => r.exportado === false || r.exportado === 'FALSE' || r.exportado === '');
 }
 // pendentes normalizados, sem CPF repetido entre si e sem quem já está na carteira
+let _cachePend = { rows: null, cart: null, out: null };
 function pendentesNormalizados(){
+  if (_cachePend.rows === allRows && _cachePend.cart === carteira && _cachePend.size === (carteira ? carteira.size : 0)) return _cachePend.out;
   const out = []; const vistos = new Set();
   pendentesRows().forEach(r => {
     const ref = normRef(r.reference); const st = normStore(r.Store_ID); const se = normSeller(st, r.Seller_ID);
     if (!ref || !st || !se || vistos.has(ref) || (carteira && carteira.has(ref))) return;
     vistos.add(ref); out.push({ reference: ref, Store_ID: st, Seller_ID: se });
   });
+  _cachePend = { rows: allRows, cart: carteira, size: carteira ? carteira.size : 0, out };
   return out;
 }
 // clientes por vendedor: carteira + pendentes
@@ -1033,7 +1036,6 @@ function renderPainelVendedores(){
       <td style="text-align:right;">${fmtN(l.falta)}</td>
       <td style="text-align:right;">${emEspera ? fmtN(emEspera) : '—'}</td>
       <td style="text-align:right;">${sugestao ? fmtN(sugestao) : 'nenhum'}</td>
-      <td><button class="btn small" data-completar="${escHtml(l.loja)}">Completar até ${fmtN(CORTE_PAINEL)} →</button></td>
     </tr>`;
   }).join('');
 
@@ -1048,10 +1050,10 @@ function renderPainelVendedores(){
     ${lojas.length ? `
     <div class="vend-grupo">
       <div class="t">Lojas com vendedores abaixo de ${fmtN(CORTE_PAINEL)} clientes (${fmtN(lojas.length)})</div>
-      <div class="field-hint" style="margin-bottom:8px;">Pra cada loja: baixe da Dito a segmentação com pelo menos a quantidade sugerida (já conta uma folga, porque parte dos clientes pode já estar na carteira) e clique em "Completar". O lote vai só pros vendedores da lista e para quando cada um chegar a ${fmtN(CORTE_PAINEL)}.</div>
+      <div class="field-hint" style="margin-bottom:8px;">Pendências depois da distribuição: vendedores que ficaram abaixo de ${fmtN(CORTE_PAINEL)} clientes. Pra resolver, baixe da Dito uma segmentação da loja com pelo menos a quantidade sugerida (já conta uma folga, porque parte dos clientes pode já estar na carteira) e gere o lote normalmente com esses vendedores: o site equaliza, dando mais pra quem tem menos.</div>
       <div style="overflow-x:auto;">
       <table>
-        <thead><tr><th>Loja</th><th>Vendedores abaixo (clientes hoje)</th><th style="text-align:right;">Faltam</th><th style="text-align:right;">Em espera</th><th style="text-align:right;">Baixar da Dito</th><th></th></tr></thead>
+        <thead><tr><th>Loja</th><th>Vendedores abaixo (clientes hoje)</th><th style="text-align:right;">Faltam</th><th style="text-align:right;">Em espera</th><th style="text-align:right;">Baixar da Dito (sugestão)</th></tr></thead>
         <tbody>${linhas}</tbody>
       </table>
       </div>
@@ -1059,27 +1061,9 @@ function renderPainelVendedores(){
     <details class="vend-grupo"><summary>Vendedores com ${fmtN(CORTE_PAINEL)} ou mais: ${fmtN(acima.length)}</summary><div class="chips">${acima.sort((a,b)=>b[1]-a[1]).map(([s,q]) => `<span class="chip">${escHtml(s)}<b>${fmtN(q)}</b></span>`).join('')}</div></details>
     ${isentos.length ? `<details class="vend-grupo"><summary>Sem limite: ${isentos.map(([s,q]) => `${escHtml(s)} (${fmtN(q)})`).join(', ')}</summary></details>` : ''}
     ${esperaDisponivel === false ? `<div class="msg warn">A planilha ainda não guarda clientes em espera (falta atualizar o Apps Script). O site avisa o excedente e oferece o arquivo pra baixar.</div>` : ''}`;
-
-  box.querySelectorAll('[data-completar]').forEach(btn => btn.addEventListener('click', () => {
-    const l = porLoja[btn.dataset.completar];
-    if (l) completarLoja(l);
-  }));
 }
 
-// cria um bloco já preenchido pra completar os vendedores abaixo da meta
-function completarLoja(l){
-  const block = addBlock();
-  block.meta = CORTE_PAINEL;
-  block.lojaCodeInput.value = l.loja.slice(-4);
-  block.lojaCodeInput.dispatchEvent(new Event('input'));
-  block.qtdInput.value = l.vend.length;
-  block.qtdInput.dispatchEvent(new Event('input'));
-  const inputs = block.vendorsWrap.querySelectorAll('.vendorCode');
-  l.vend.forEach(([s], i) => { if (inputs[i]) inputs[i].value = codigoVendedor(s); });
-  block.btnGerar.textContent = `Completar até ${fmtN(CORTE_PAINEL)} →`;
-  block.loteMsg.innerHTML = `<div class="msg info">Modo completar: cada vendedor recebe só o que falta pra chegar a ${fmtN(CORTE_PAINEL)} (faltam ${fmtN(l.falta)} no total). Sobe a segmentação da Dito desta loja e clica em "Completar".</div>`;
-  block.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
+
 
 function shuffle(arr){
   const a = arr.slice();
