@@ -247,6 +247,18 @@
   .pedido-actions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
 
   footer{ text-align:center; margin-top:36px; color:var(--muted); font-size:11px; font-family:var(--sans); }
+  /* ---- carteira Dito / limite / painel de vendedores ---- */
+  .msg.alerta{ background:#fdeceb; border:1.5px solid #e2665b; color:#a3261b; font-weight:600; }
+  .msg.alerta .det{ font-weight:400; margin-top:6px; color:#a83c32; }
+  .badge.espera{ background:rgba(208,12,101,.10); color:var(--brand-magenta); }
+  .carteira-gate{ border:1.5px dashed var(--brand-magenta); }
+  .vend-grupo{ margin-top:14px; }
+  .vend-grupo .t{ font-size:12.5px; font-weight:600; color:var(--text); margin-bottom:8px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip{ font-family:var(--mono); font-size:11.5px; padding:4px 8px; border-radius:8px; background:var(--panel-2, #f4f1e6); border:1px solid var(--line); color:var(--text); }
+  .chip b{ font-weight:600; color:var(--accent); margin-left:4px; }
+  details.vend-grupo summary{ cursor:pointer; font-size:12.5px; font-weight:600; color:var(--text); }
+  details.vend-grupo .chips{ margin-top:8px; }
 </style>
 </head>
 <body>
@@ -371,6 +383,19 @@
     </div>
   </div>
 
+  <!-- CARTEIRA ATUAL DA DITO (passo obrigatório) -->
+  <div class="panel carteira-gate" id="carteiraPanel">
+    <h2><span class="n">·</span> Carteira atual da Dito <span style="margin-left:auto; font-size:11.5px; font-weight:600;" id="carteiraStatus"></span></h2>
+    <div class="field-hint" style="margin-bottom:12px;">Antes de gerar qualquer lote, sobe aqui o último export da carteira que está na Dito (colunas reference; Store_ID; Seller_ID). O site usa essa base pra não repetir cliente e pra respeitar o limite de <strong id="limiteTxt"></strong> clientes por vendedor. Fica guardada neste navegador até o fim do dia.</div>
+    <div class="drop" id="carteiraDrop">
+      <input type="file" accept=".csv,.txt" id="carteiraFile">
+      <div class="icon">↑</div>
+      <div class="txt">Arraste o CSV da carteira atual ou clique pra escolher</div>
+      <div class="sm">Não abra no Excel antes de subir: o Excel estraga os CPFs</div>
+    </div>
+    <div id="carteiraInfo"></div>
+  </div>
+
   <!-- BACKLOG DE PEDIDOS -->
   <div class="panel">
     <h2><span class="n">·</span> Backlog de pedidos <span style="margin-left:auto; cursor:pointer; color:var(--accent); font-family:var(--sans); font-size:11.5px; font-weight:600;" id="btnRefreshPedidos">↻ atualizar</span></h2>
@@ -395,9 +420,11 @@
     <div id="dupWarning"></div>
 
     <div class="actions">
-      <button class="btn" id="btnDownload">Baixar Excel‑chave (pendentes) e marcar como exportado</button>
+      <button class="btn" id="btnDownloadFinal">Baixar arquivo final (carteira Dito + novos) e marcar como exportado</button>
+      <button class="btn secondary" id="btnDownload">Baixar só os novos (pendentes) e marcar como exportado</button>
       <button class="btn secondary" id="btnPreview">Ver prévia</button>
     </div>
+    <div class="field-hint" style="margin-top:8px;">O arquivo final junta a carteira da Dito com os pendentes, um vendedor por cliente (quem já está na carteira não muda de vendedor), CPF com 11 dígitos, loja com 6 e vendedor no formato 00XXXX:YYYY.</div>
 
     <div id="previewWrap" style="margin-top:18px; display:none;">
       <table id="previewTable">
@@ -406,6 +433,12 @@
       </table>
       <div class="field-hint" style="margin-top:8px;">Mostrando as primeiras 15 linhas pendentes.</div>
     </div>
+  </div>
+
+  <!-- PAINEL DE VENDEDORES -->
+  <div class="panel" id="vendPanel">
+    <h2><span class="n">·</span> Vendedores (carteira Dito + pendentes)</h2>
+    <div id="vendPainel"><div class="empty">Sobe a carteira atual da Dito pra ver o painel.</div></div>
   </div>
 
   <footer>gera arquivo .csv delimitado por ; · UTF‑8 com BOM · estado compartilhado via Google Sheets</footer>
@@ -693,8 +726,24 @@ function initAdmin(){
   document.getElementById('btnRefresh').addEventListener('click', fetchState);
   document.getElementById('btnPreview').addEventListener('click', togglePreview);
   document.getElementById('btnDownload').addEventListener('click', downloadPendentes);
+  document.getElementById('btnDownloadFinal').addEventListener('click', downloadFinal);
+
+  document.getElementById('limiteTxt').textContent = fmtN(LIMITE_POR_VENDEDOR);
+  const cDrop = document.getElementById('carteiraDrop');
+  const cFile = document.getElementById('carteiraFile');
+  cDrop.addEventListener('click', () => cFile.click());
+  cDrop.addEventListener('dragover', e => { e.preventDefault(); cDrop.classList.add('drag'); });
+  cDrop.addEventListener('dragleave', () => cDrop.classList.remove('drag'));
+  cDrop.addEventListener('drop', e => {
+    e.preventDefault(); cDrop.classList.remove('drag');
+    if (e.dataTransfer.files.length) lerCarteiraDito(e.dataTransfer.files[0]);
+  });
+  cFile.addEventListener('change', e => { if (e.target.files.length) lerCarteiraDito(e.target.files[0]); e.target.value = ''; });
 
   addBlock();
+  renderCarteira();
+  carregarCarteiraLocal().then(ok => { if (ok){ renderCarteira(); renderSession(); renderPainelVendedores(); } atualizarTravaBlocos(); });
+  carregarEsperaResumo().then(() => { renderPedidos(); renderPainelVendedores(); });
   fetchState();
   fetchPedidos();
 }
@@ -725,6 +774,259 @@ function padCPF(raw){
   const digits = String(raw).replace(/\D/g,'');
   return digits.padStart(11,'0');
 }
+// ================================================================
+// ===== CARTEIRA DITO · LIMITE POR VENDEDOR · CLIENTES EM ESPERA =====
+// ================================================================
+const LIMITE_POR_VENDEDOR = 3000;
+const VENDEDORES_SEM_LIMITE = new Set(['1835']); // código do vendedor (consultor digital)
+const CORTE_PAINEL = 2000;
+
+// carteira = clientes já na Dito: cpf -> seller. cargas = clientes por seller (carteira + pendentes)
+let carteira = null;            // Map | null
+let carteiraMeta = null;        // { arquivo, carregadoEm, linhas, ... }
+let esperaPorLoja = {};         // storeID -> qtd de clientes em espera
+let esperaDisponivel = null;    // null = ainda não checou; false = backend sem suporte
+
+function fmtN(n){ return Number(n || 0).toLocaleString('pt-BR'); }
+function escHtml(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// CPF "estragado" pelo Excel: notação científica (3,7E+10) ou número cheio de zeros no fim (37000000000)
+function cpfCorrompido(raw){
+  const s = String(raw ?? '').trim();
+  if (/e\+/i.test(s)) return true;
+  const d = s.replace(/\D/g,'');
+  return d.length >= 10 && /^\d{1,4}0{7,}$/.test(d);
+}
+function cpfValido(c){
+  if (!/^\d{11}$/.test(c) || /^(\d)\1{10}$/.test(c)) return false;
+  for (const n of [9,10]){
+    let s = 0;
+    for (let i = 0; i < n; i++) s += +c[i] * (n + 1 - i);
+    if ((s * 10) % 11 % 10 !== +c[n]) return false;
+  }
+  return true;
+}
+// devolve CPF com 11 dígitos, CNPJ com 14, ou '' se inválido/corrompido
+function normRef(raw){
+  const s = String(raw ?? '').trim().replace(/^ID=/i,'');
+  if (!s || cpfCorrompido(s)) return '';
+  const d = s.replace(/\D/g,'');
+  if (!d) return '';
+  if (d.length === 14) return d;
+  if (d.length > 11) return '';
+  const c = d.padStart(11,'0');
+  return cpfValido(c) ? c : '';
+}
+function normStore(raw){
+  const d = String(raw ?? '').replace(/\D/g,'');
+  return d ? d.slice(-6).padStart(6,'0') : '';
+}
+function normSeller(store, rawSeller){
+  const code = String(rawSeller ?? '').split(':').pop().trim().toUpperCase();
+  return store && code ? `${store}:${code}` : '';
+}
+function codigoVendedor(sellerID){ return String(sellerID).split(':').pop(); }
+function semLimite(sellerID){ return VENDEDORES_SEM_LIMITE.has(codigoVendedor(sellerID)); }
+
+function pendentesRows(){
+  return allRows.filter(r => r.exportado === false || r.exportado === 'FALSE' || r.exportado === '');
+}
+// pendentes normalizados, sem CPF repetido entre si e sem quem já está na carteira
+function pendentesNormalizados(){
+  const out = []; const vistos = new Set();
+  pendentesRows().forEach(r => {
+    const ref = normRef(r.reference); const st = normStore(r.Store_ID); const se = normSeller(st, r.Seller_ID);
+    if (!ref || !st || !se || vistos.has(ref) || (carteira && carteira.has(ref))) return;
+    vistos.add(ref); out.push({ reference: ref, Store_ID: st, Seller_ID: se });
+  });
+  return out;
+}
+// clientes por vendedor: carteira + pendentes
+function calcularCargas(){
+  const cargas = new Map();
+  if (carteira) carteira.forEach(se => cargas.set(se, (cargas.get(se) || 0) + 1));
+  pendentesNormalizados().forEach(r => cargas.set(r.Seller_ID, (cargas.get(r.Seller_ID) || 0) + 1));
+  return cargas;
+}
+// CPFs ocupados = carteira + pendentes
+function cpfsOcupados(){
+  const s = new Set(carteira ? carteira.keys() : []);
+  pendentesRows().forEach(r => { const ref = normRef(r.reference); if (ref) s.add(ref); });
+  return s;
+}
+
+// ---- guardar a carteira no navegador (IndexedDB) até o fim do dia ----
+const IDB_NOME = 'encarteiramento', IDB_STORE = 'carteira';
+function idb(){
+  return new Promise((ok, err) => {
+    const req = indexedDB.open(IDB_NOME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => ok(req.result); req.onerror = () => err(req.error);
+  });
+}
+async function salvarCarteiraLocal(){
+  try{
+    const db = await idb();
+    await new Promise((ok, err) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).put({ refs: Array.from(carteira.keys()), sellers: Array.from(carteira.values()), meta: carteiraMeta }, 'atual');
+      tx.oncomplete = ok; tx.onerror = () => err(tx.error);
+    });
+  }catch(e){ /* sem IndexedDB: só não lembra depois de recarregar */ }
+}
+async function carregarCarteiraLocal(){
+  try{
+    const db = await idb();
+    const v = await new Promise((ok, err) => {
+      const req = db.transaction(IDB_STORE).objectStore(IDB_STORE).get('atual');
+      req.onsuccess = () => ok(req.result); req.onerror = () => err(req.error);
+    });
+    if (!v || !v.meta || v.meta.dia !== new Date().toLocaleDateString('pt-BR')) return false;
+    carteira = new Map(); v.refs.forEach((r, i) => carteira.set(r, v.sellers[i]));
+    carteiraMeta = v.meta;
+    return true;
+  }catch(e){ return false; }
+}
+
+function lerCarteiraDito(file){
+  const info = document.getElementById('carteiraInfo');
+  info.innerHTML = `<div class="msg info">Lendo "${escHtml(file.name)}"…</div>`;
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true, delimitersToGuess: [';', ',', '\t', '|'],
+    complete: function(results){
+      const fields = (results.meta.fields || []).map(f => String(f).replace(/^﻿/,'').trim());
+      const orig = results.meta.fields || [];
+      const acha = (...nomes) => { const i = fields.findIndex(f => nomes.includes(f.toLowerCase())); return i >= 0 ? orig[i] : null; };
+      const cRef = acha('reference', 'cpf', 'user_id');
+      const cStore = acha('store_id', 'loja', 'store');
+      const cSeller = acha('seller_id', 'vendedor', 'seller');
+      if (!cRef || !cStore || !cSeller){
+        info.innerHTML = `<div class="msg err">Não encontrei as colunas reference, Store_ID e Seller_ID nesse arquivo. Confere se é o export da carteira da Dito.</div>`;
+        return;
+      }
+      const nova = new Map();
+      let corrompidos = 0, invalidos = 0, repetidos = 0, conflitos = 0;
+      results.data.forEach(r => {
+        const raw = r[cRef];
+        if (cpfCorrompido(raw)){ corrompidos++; return; }
+        const ref = normRef(raw); const st = normStore(r[cStore]); const se = normSeller(st, r[cSeller]);
+        if (!ref || !st || !se){ invalidos++; return; }
+        if (nova.has(ref)){ repetidos++; if (nova.get(ref) !== se) conflitos++; return; }
+        nova.set(ref, se);
+      });
+      carteira = nova;
+      carteiraMeta = {
+        arquivo: file.name, dia: new Date().toLocaleDateString('pt-BR'), hora: new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}),
+        linhas: results.data.length, clientes: nova.size, corrompidos, invalidos, repetidos, conflitos
+      };
+      salvarCarteiraLocal();
+      renderCarteira(); renderSession(); renderPainelVendedores(); atualizarTravaBlocos();
+      blocks.forEach(b => { if (b.stats) renderBlockFileInfo(b, b.idCol); });
+    },
+    error: function(err){ info.innerHTML = `<div class="msg err">Erro ao ler o arquivo: ${escHtml(err.message)}</div>`; }
+  });
+}
+
+function renderCarteira(){
+  const status = document.getElementById('carteiraStatus');
+  const info = document.getElementById('carteiraInfo');
+  const panel = document.getElementById('carteiraPanel');
+  if (!carteira){
+    status.innerHTML = `<span style="color:var(--accent)">obrigatório antes de gerar lotes</span>`;
+    panel.classList.add('carteira-gate');
+    return;
+  }
+  const m = carteiraMeta;
+  status.innerHTML = `<span style="color:#2f8a5f">✓ carregada</span>`;
+  panel.classList.remove('carteira-gate');
+  const avisos = [];
+  if (m.corrompidos) avisos.push(`${fmtN(m.corrompidos)} CPF(s) estragados pelo Excel (ignorados)`);
+  if (m.invalidos) avisos.push(`${fmtN(m.invalidos)} linha(s) com CPF, loja ou vendedor inválido (ignoradas)`);
+  if (m.repetidos) avisos.push(`${fmtN(m.repetidos)} CPF(s) repetidos na carteira (vale a primeira linha${m.conflitos ? `; ${fmtN(m.conflitos)} estavam com vendedores diferentes` : ''})`);
+  info.innerHTML = `
+    <div class="filecard" style="margin-top:14px;">
+      <div>
+        <div class="name">${escHtml(m.arquivo)}</div>
+        <div class="meta">${fmtN(m.clientes)} clientes únicos · carregada hoje às ${m.hora} · sobe de novo pra trocar</div>
+      </div>
+    </div>
+    ${avisos.length ? `<div class="msg warn">${avisos.join(' · ')}</div>` : ''}`;
+}
+
+function atualizarTravaBlocos(){
+  blocks.forEach(b => {
+    if (b.travado) return;
+    b.btnGerar.disabled = !carteira;
+    b.btnGerar.title = carteira ? '' : 'Sobe a carteira atual da Dito primeiro';
+  });
+}
+
+// ---- clientes em espera (excedente do limite), guardados por loja no backend ----
+async function carregarEsperaResumo(){
+  try{
+    const data = await getAction('action=getEsperaResumo');
+    if (!data || !Array.isArray(data.rows)) throw new Error('sem suporte');
+    esperaPorLoja = {};
+    data.rows.forEach(r => { esperaPorLoja[normStore(r.loja_ref)] = Number(r.qtd) || 0; });
+    esperaDisponivel = true;
+  }catch(e){
+    esperaDisponivel = false; esperaPorLoja = {};
+  }
+}
+async function buscarEsperaDaLoja(storeID){
+  if (!esperaDisponivel) return [];
+  try{
+    const data = await getAction(`action=getEspera&lojaRef=${storeID}`);
+    return (data.cpfs || []).map(normRef).filter(Boolean);
+  }catch(e){ return []; }
+}
+async function salvarEsperaDaLoja(storeID, cpfs, usuario){
+  if (!esperaDisponivel) return false;
+  try{
+    const resp = await postAction({ action: 'salvarEspera', lojaRef: storeID, cpfs, usuario });
+    if (!resp || !resp.ok) return false;
+    if (cpfs.length) esperaPorLoja[storeID] = cpfs.length; else delete esperaPorLoja[storeID];
+    return true;
+  }catch(e){ return false; }
+}
+
+function baixarCSV(nome, linhas){
+  const csv = '﻿' + linhas.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = nome;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ---- painel de vendedores ----
+function renderPainelVendedores(){
+  const box = document.getElementById('vendPainel');
+  if (!box) return;
+  if (!carteira){ box.innerHTML = `<div class="empty">Sobe a carteira atual da Dito pra ver o painel.</div>`; return; }
+  const cargas = Array.from(calcularCargas().entries()).sort((a,b) => a[1] - b[1]);
+  const isentos = cargas.filter(([s]) => semLimite(s));
+  const normais = cargas.filter(([s]) => !semLimite(s));
+  const ate = normais.filter(([,q]) => q <= CORTE_PAINEL);
+  const acima = normais.filter(([,q]) => q > CORTE_PAINEL);
+  const noLimite = normais.filter(([,q]) => q >= LIMITE_POR_VENDEDOR);
+  const chips = lista => lista.map(([s,q]) => `<span class="chip">${escHtml(s)}<b>${fmtN(q)}</b></span>`).join('');
+  const espera = Object.entries(esperaPorLoja).filter(([,q]) => q > 0).sort((a,b) => b[1] - a[1]);
+  box.innerHTML = `
+    <div class="stat-row" style="margin-top:12px;">
+      <div class="stat"><div class="v">${fmtN(ate.length)}</div><div class="l">vendedores com até ${fmtN(CORTE_PAINEL)} clientes</div></div>
+      <div class="stat"><div class="v">${fmtN(acima.length)}</div><div class="l">vendedores com mais de ${fmtN(CORTE_PAINEL)}</div></div>
+      <div class="stat"><div class="v">${fmtN(noLimite.length)}</div><div class="l">no limite de ${fmtN(LIMITE_POR_VENDEDOR)}</div></div>
+      <div class="stat"><div class="v">${fmtN(espera.reduce((t,[,q]) => t + q, 0))}</div><div class="l">clientes em espera</div></div>
+    </div>
+    <details class="vend-grupo" open><summary>Até ${fmtN(CORTE_PAINEL)} clientes: ${fmtN(ate.length)} vendedor(es)</summary><div class="chips">${chips(ate) || '<span class="field-hint">nenhum</span>'}</div></details>
+    <details class="vend-grupo" open><summary>Mais de ${fmtN(CORTE_PAINEL)} clientes: ${fmtN(acima.length)} vendedor(es)</summary><div class="chips">${chips(acima.slice().reverse()) || '<span class="field-hint">nenhum</span>'}</div></details>
+    ${isentos.length ? `<details class="vend-grupo"><summary>Sem limite: ${isentos.map(([s]) => escHtml(s)).join(', ')}</summary><div class="chips">${chips(isentos)}</div></details>` : ''}
+    ${espera.length ? `<details class="vend-grupo"><summary>Lojas com clientes em espera: ${fmtN(espera.length)}</summary><div class="chips">${espera.map(([l,q]) => `<span class="chip">${escHtml(l)}<b>${fmtN(q)}</b></span>`).join('')}</div></details>` : ''}
+    ${esperaDisponivel === false ? `<div class="msg warn">A planilha ainda não guarda clientes em espera (falta atualizar o Apps Script). O site avisa o excedente e oferece o arquivo pra baixar.</div>` : ''}`;
+}
+
 function shuffle(arr){
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--){
@@ -793,6 +1095,7 @@ function renderPedidos(){
             <div class="pedido-loja">${p.loja_nome} <span style="color:var(--muted)">— ${p.loja_codigo}</span></div>
             <div class="pedido-meta">${p.qtd_vendedores} vendedor(es): ${p.codigos_vendedores}</div>
             <div class="pedido-meta">${formatarDatasPedido(p)}</div>
+            ${esperaPorLoja[normStore(p.loja_codigo)] ? `<div class="pedido-meta" style="margin-top:4px;"><span class="badge espera">Loja já tem ${fmtN(esperaPorLoja[normStore(p.loja_codigo)])} clientes em espera da última versão</span></div>` : ''}
           </div>
           <span class="badge ${p.status}">${p.status.replace('_',' ')}</span>
         </div>
@@ -963,6 +1266,7 @@ function addBlock(){
       </div>
     </div>
 
+    <div class="esperaInfo"></div>
     <div class="vendors"></div>
 
     <div class="actions">
@@ -981,6 +1285,7 @@ function addBlock(){
   block.qtdInput = el.querySelector('.qtdVendedores');
   block.vendorsWrap = el.querySelector('.vendors');
   block.loteMsg = el.querySelector('.loteMsg');
+  block.esperaInfo = el.querySelector('.esperaInfo');
   block.btnGerar = el.querySelector('.btnGerarLote');
 
   block.dropzone.addEventListener('click', () => block.fileInput.click());
@@ -998,6 +1303,8 @@ function addBlock(){
     const v = block.lojaCodeInput.value.replace(/\D/g,'').slice(0,4);
     block.lojaCodeInput.value = v;
     block.storePreview.textContent = v ? '00' + v.padStart(4,'0') : '00XXXX';
+    const q = v ? esperaPorLoja['00' + v.padStart(4,'0')] : 0;
+    block.esperaInfo.innerHTML = q ? `<div class="msg info">Esta loja tem ${fmtN(q)} clientes em espera da última versão. Eles entram primeiro neste lote (quem já estiver na carteira fica de fora).</div>` : '';
   });
 
   block.qtdInput.addEventListener('input', () => renderBlockVendorFields(block));
@@ -1005,6 +1312,7 @@ function addBlock(){
   block.btnGerar.addEventListener('click', () => gerarLoteDoBloco(block));
 
   blocks.push(block);
+  if (!carteira){ block.btnGerar.disabled = true; block.btnGerar.title = 'Sobe a carteira atual da Dito primeiro'; }
   renderBlockVendorFields(block);
   renumberBlocks();
   return block;
@@ -1041,50 +1349,23 @@ function handleBlockFile(block, file){
         block.fileInfo.innerHTML = `<div class="msg err">Não encontrei nenhuma coluna com o padrão "ID=CPF". Verifica se é mesmo um export da Dito.</div>`;
         return;
       }
-      block.cpfList = rows
+      const brutos = rows
         .map(r => r[idCol])
-        .filter(v => v !== undefined && v !== null && String(v).trim() !== '')
-        .map(v => padCPF(String(v).replace(/^ID=/i,'')));
-
-      block.fileInfo.innerHTML = `
-        <div class="filecard">
-          <div>
-            <div class="name">${block.fileName}</div>
-            <div class="meta">coluna detectada: "${idCol}" · ${block.cpfList.length.toLocaleString('pt-BR')} CPFs extraídos</div>
-          </div>
-          <div class="clear">remover</div>
-        </div>
-        <div class="msg info">Conferindo se algum já foi carteirizado antes…</div>
-      `;
-      block.fileInfo.querySelector('.clear').addEventListener('click', () => {
-        block.cpfList = []; block.fileName = '';
-        block.fileInput.value = ''; block.fileInfo.innerHTML = '';
+        .filter(v => v !== undefined && v !== null && String(v).trim() !== '');
+      let corrompidos = 0, invalidos = 0, repetidos = 0;
+      const vistos = new Set();
+      block.cpfList = [];
+      brutos.forEach(v => {
+        const s = String(v).replace(/^ID=/i,'').trim();
+        if (cpfCorrompido(s)){ corrompidos++; return; }
+        const ref = normRef(s);
+        if (!ref){ invalidos++; return; }
+        if (vistos.has(ref)){ repetidos++; return; }
+        vistos.add(ref); block.cpfList.push(ref);
       });
-
-      // checagem de duplicidade acontece no servidor — não baixa a planilha inteira pro navegador
-      let jaCarteirizadosCount = null;
-      try{
-        const resp = await postAction({ action: 'checarHistorico', cpfs: block.cpfList });
-        jaCarteirizadosCount = (resp && resp.existentes) ? resp.existentes.length : 0;
-      }catch(err){
-        jaCarteirizadosCount = null; // não foi possível checar — segue sem bloquear o fluxo
-      }
-
-      block.fileInfo.innerHTML = `
-        <div class="filecard">
-          <div>
-            <div class="name">${block.fileName}</div>
-            <div class="meta">coluna detectada: "${idCol}" · ${block.cpfList.length.toLocaleString('pt-BR')} CPFs extraídos</div>
-          </div>
-          <div class="clear">remover</div>
-        </div>
-        ${jaCarteirizadosCount ? `<div class="msg warn">⚠ ${jaCarteirizadosCount.toLocaleString('pt-BR')} destes CPFs já aparecem em algum lote anterior na planilha (pode ser realocação — confere se é intencional).</div>` : ''}
-        ${jaCarteirizadosCount === null ? `<div class="msg warn">Não consegui checar duplicidade agora — segue em frente, mas vale conferir na planilha depois.</div>` : ''}
-      `;
-      block.fileInfo.querySelector('.clear').addEventListener('click', () => {
-        block.cpfList = []; block.fileName = '';
-        block.fileInput.value = ''; block.fileInfo.innerHTML = '';
-      });
+      block.stats = { brutos: brutos.length, corrompidos, invalidos, repetidos };
+      block.idCol = idCol;
+      renderBlockFileInfo(block, idCol);
     },
     error: function(err){
       block.fileInfo.innerHTML = `<div class="msg err">Erro ao ler CSV: ${err.message}</div>`;
@@ -1109,10 +1390,34 @@ function renderBlockVendorFields(block){
   }
 }
 
+function renderBlockFileInfo(block, idCol){
+  const st = block.stats || {};
+  const ocupados = carteira ? cpfsOcupados() : null;
+  const jaNaBase = ocupados ? block.cpfList.filter(c => ocupados.has(c)).length : null;
+  block.fileInfo.innerHTML = `
+    <div class="filecard">
+      <div>
+        <div class="name">${escHtml(block.fileName)}</div>
+        <div class="meta">coluna detectada: "${escHtml(idCol)}" · ${fmtN(st.brutos)} linhas · ${fmtN(block.cpfList.length)} CPFs válidos e únicos${jaNaBase !== null ? ` · ${fmtN(block.cpfList.length - jaNaBase)} novos (fora da carteira)` : ''}</div>
+      </div>
+      <div class="clear">remover</div>
+    </div>
+    ${st.corrompidos ? `<div class="msg alerta">✕ ${fmtN(st.corrompidos)} CPF(s) estragados pelo Excel (ex.: 3,7E+10 ou 37000000000) foram ignorados.<div class="det">Esse arquivo foi aberto e salvo no Excel. Baixa de novo da Dito e sobe direto, sem abrir.</div></div>` : ''}
+    ${st.invalidos ? `<div class="msg warn">${fmtN(st.invalidos)} CPF(s) inválidos ignorados.</div>` : ''}
+    ${st.repetidos ? `<div class="msg info">${fmtN(st.repetidos)} CPF(s) repetidos no arquivo, contados uma vez.</div>` : ''}
+    ${jaNaBase ? `<div class="msg info">${fmtN(jaNaBase)} CPF(s) já estão na carteira da Dito ou em lotes pendentes. Ficam fora deste lote, sem trocar de vendedor.</div>` : ''}
+    ${!carteira ? `<div class="msg warn">Sobe a carteira atual da Dito (no topo da página) pra liberar a geração deste lote.</div>` : ''}
+  `;
+  block.fileInfo.querySelector('.clear').addEventListener('click', () => {
+    block.cpfList = []; block.fileName = ''; block.stats = null;
+    block.fileInput.value = ''; block.fileInfo.innerHTML = '';
+  });
+}
+
 async function gerarLoteDoBloco(block){
   block.loteMsg.innerHTML = '';
-  if (!block.cpfList.length){
-    block.loteMsg.innerHTML = `<div class="msg err">Sobe um arquivo de segmentação primeiro.</div>`;
+  if (!carteira){
+    block.loteMsg.innerHTML = `<div class="msg err">Sobe a carteira atual da Dito primeiro (no topo da página).</div>`;
     return;
   }
   const lojaRaw = block.lojaCodeInput.value.trim();
@@ -1122,49 +1427,102 @@ async function gerarLoteDoBloco(block){
   }
   const usuario = document.getElementById('usuarioNome').value.trim() || 'desconhecido';
   const storeID = '00' + lojaRaw.padStart(4,'0');
-  const vendorInputs = Array.from(block.vendorsWrap.querySelectorAll('.vendorCode')).map(i => i.value.trim());
+  const vendorInputs = Array.from(block.vendorsWrap.querySelectorAll('.vendorCode')).map(i => i.value.trim().toUpperCase());
   if (vendorInputs.some(v => !v)){
     block.loteMsg.innerHTML = `<div class="msg err">Preenche o código de todos os vendedores.</div>`;
     return;
   }
-  const sellerIDs = vendorInputs.map(v => `${storeID}:${v}`);
+  const sellerIDs = Array.from(new Set(vendorInputs.map(v => `${storeID}:${v}`)));
 
-  const shuffledCPFs = shuffle(block.cpfList);
-  const shuffledVendorOrder = shuffle(sellerIDs.map((s,i) => i));
-  const nV = sellerIDs.length;
-  const base = Math.floor(shuffledCPFs.length / nV);
-  const remainder = shuffledCPFs.length % nV;
-  const extraSet = new Set(shuffledVendorOrder.slice(0, remainder));
+  // 1) clientes em espera desta loja primeiro, depois os do arquivo novo (sorteados)
+  const espera = await buscarEsperaDaLoja(storeID);
+  if (!block.cpfList.length && !espera.length){
+    block.loteMsg.innerHTML = `<div class="msg err">Sobe um arquivo de segmentação primeiro.</div>`;
+    return;
+  }
+  const ocupados = cpfsOcupados();
+  const vistos = new Set();
+  const fila = [];
+  let esperaUsados = 0, jaNaBase = 0;
+  espera.forEach(c => { if (ocupados.has(c)){ jaNaBase++; return; } if (!vistos.has(c)){ vistos.add(c); fila.push(c); esperaUsados++; } });
+  shuffle(block.cpfList).forEach(c => { if (ocupados.has(c)){ jaNaBase++; return; } if (!vistos.has(c)){ vistos.add(c); fila.push(c); } });
 
-  let cursor = 0;
+  // 2) distribui respeitando o limite (contando o que cada vendedor já tem)
+  const cargas = calcularCargas();
+  const antes = {}; const recebe = {};
+  sellerIDs.forEach(s => { antes[s] = cargas.get(s) || 0; recebe[s] = 0; });
+  const vagas = s => semLimite(s) ? Infinity : Math.max(0, LIMITE_POR_VENDEDOR - antes[s] - recebe[s]);
   const rowsToSend = [];
-  for (let i = 0; i < nV; i++){
-    const qty = base + (extraSet.has(i) ? 1 : 0);
-    const slice = shuffledCPFs.slice(cursor, cursor + qty);
-    cursor += qty;
-    slice.forEach(cpf => rowsToSend.push({ reference: cpf, Store_ID: storeID, Seller_ID: sellerIDs[i] }));
+  const excedente = [];
+  for (const cpf of fila){
+    let melhor = null;
+    for (const s of sellerIDs){
+      if (vagas(s) <= 0) continue;
+      if (melhor === null || (antes[s] + recebe[s]) < (antes[melhor] + recebe[melhor])) melhor = s;
+    }
+    if (melhor === null){ excedente.push(cpf); continue; }
+    recebe[melhor]++;
+    rowsToSend.push({ reference: cpf, Store_ID: storeID, Seller_ID: melhor });
   }
 
-  const arquivoOrigem = block.fileName;
+  const resumoVend = sellerIDs.map(s => `${escHtml(codigoVendedor(s))}: tinha ${fmtN(antes[s])}, recebe ${fmtN(recebe[s])}${semLimite(s) ? ' (sem limite)' : ''}`).join(' · ');
+  const avisoExcedente = excedente.length
+    ? `<div class="msg alerta">⚠ ${fmtN(excedente.length)} clientes não subidos para respeitar o limite de ${fmtN(LIMITE_POR_VENDEDOR)} por vendedor.<div class="det">${resumoVend}</div></div>`
+    : '';
+
+  if (!rowsToSend.length){
+    block.loteMsg.innerHTML = (avisoExcedente || '') + `<div class="msg err">Nenhum cliente novo para gravar${jaNaBase ? ` (${fmtN(jaNaBase)} já estão na carteira)` : ''}${excedente.length ? ' — todos os vendedores desta loja estão no limite' : ''}.</div>`;
+    if (excedente.length) await guardarExcedente(block, storeID, excedente, usuario);
+    return;
+  }
+
+  const arquivoOrigem = block.fileName || 'clientes em espera';
   block.btnGerar.disabled = true;
-  block.loteMsg.innerHTML = `<div class="msg info">Gravando na planilha…</div>`;
+  block.loteMsg.innerHTML = avisoExcedente + `<div class="msg info">Gravando na planilha…</div>`;
 
   try{
     const resp = await postAction({ action: 'appendLote', usuario, arquivo: arquivoOrigem, lojaRef: storeID, rows: rowsToSend });
     if (!resp || !resp.ok) throw new Error(resp && resp.error ? resp.error : 'resposta inesperada do backend');
 
     await fetchState();
-
     if (block.pedidoIds && block.pedidoIds.length){
       for (const pid of block.pedidoIds) await setPedidoStatus(pid, 'concluido');
     }
 
-    showGlobalMsg('ok', `✓ Loja ${storeID} — "${arquivoOrigem}": ${shuffledCPFs.length.toLocaleString('pt-BR')} clientes gravados e divididos entre ${nV} vendedor(es). Confirmado na planilha.`);
-    removeBlock(block);
+    const partes = [`${fmtN(rowsToSend.length)} clientes gravados entre ${sellerIDs.length} vendedor(es)`];
+    if (esperaUsados) partes.push(`${fmtN(esperaUsados)} vieram da espera`);
+    if (jaNaBase) partes.push(`${fmtN(jaNaBase)} já estavam na carteira`);
+    if (excedente.length) partes.push(`${fmtN(excedente.length)} ficaram em espera pelo limite`);
+    showGlobalMsg(excedente.length ? 'warn' : 'ok', `✓ Loja ${storeID} — "${escHtml(arquivoOrigem)}": ${partes.join(' · ')}.`);
+    // espera da loja passa a ser só o excedente desta rodada
+    const guardou = (espera.length || excedente.length) ? await guardarExcedente(block, storeID, excedente, usuario) : true;
+    if (excedente.length){
+      // mantém o bloco aberto com o alerta vermelho visível
+      block.loteMsg.innerHTML = avisoExcedente
+        + `<div class="msg ok">✓ ${fmtN(rowsToSend.length)} clientes gravados na planilha.</div>`
+        + (guardou ? `<div class="msg info">Os ${fmtN(excedente.length)} clientes que sobraram ficaram em espera para a loja ${storeID} e entram primeiro no próximo pedido dela.</div>` : '');
+      block.btnGerar.textContent = 'Lote gravado';
+      block.btnGerar.disabled = true;
+      block.travado = true;
+    } else {
+      removeBlock(block);
+    }
+    renderPedidos();
   }catch(err){
     block.btnGerar.disabled = false;
-    showGlobalMsg('err', `✕ Erro ao gravar o lote da loja ${storeID} (arquivo "${arquivoOrigem}"): ${err.message}. Nada foi salvo — tenta de novo.`);
+    showGlobalMsg('err', `✕ Erro ao gravar o lote da loja ${storeID} (arquivo "${escHtml(arquivoOrigem)}"): ${escHtml(err.message)}. Nada foi salvo — tenta de novo.`);
   }
+}
+
+async function guardarExcedente(block, storeID, excedente, usuario){
+  const ok = await salvarEsperaDaLoja(storeID, excedente, usuario);
+  renderPainelVendedores();
+  if (ok || !excedente.length) return ok;
+  // backend sem suporte: oferece o arquivo do excedente
+  const nome = `excedente_${storeID}_${new Date().toISOString().slice(0,10)}.csv`;
+  baixarCSV(nome, ['reference;Store_ID', ...excedente.map(c => `${c};${storeID}`)]);
+  showGlobalMsg('warn', `Não consegui guardar o excedente da loja ${storeID} na planilha. Baixei "${nome}" com os ${fmtN(excedente.length)} clientes pra você guardar.`);
+  return false;
 }
 
 // ---------------- PENDENTES ----------------
@@ -1178,6 +1536,7 @@ function renderSession(){
     lotesList.innerHTML = `<div class="empty">Nenhum lote pendente. Tudo que foi gerado já está exportado.</div>`;
     statRow.innerHTML = '';
     dupWarning.innerHTML = '';
+    renderPainelVendedores();
     return;
   }
 
@@ -1214,9 +1573,14 @@ function renderSession(){
 
   const seen = new Map(); const dups = new Set();
   pending.forEach(r => { if (seen.has(r.reference)) dups.add(r.reference); seen.set(r.reference, true); });
-  dupWarning.innerHTML = dups.size
-    ? `<div class="msg warn">⚠ ${dups.size} CPF(s) aparecem em mais de um lote pendente (possível conflito entre vendedores). Confere antes de exportar.</div>`
-    : '';
+  let jaNaCarteira = 0;
+  if (carteira) pending.forEach(r => { const ref = normRef(r.reference); if (ref && carteira.has(ref)) jaNaCarteira++; });
+  dupWarning.innerHTML = (dups.size
+    ? `<div class="msg warn">⚠ ${dups.size} CPF(s) aparecem em mais de um lote pendente. No arquivo final fica só o primeiro.</div>`
+    : '') + (jaNaCarteira
+    ? `<div class="msg warn">⚠ ${fmtN(jaNaCarteira)} CPF(s) pendentes já estão na carteira da Dito. Eles ficam fora do arquivo final, sem trocar de vendedor.</div>`
+    : '');
+  renderPainelVendedores();
 }
 
 function togglePreview(){
@@ -1229,34 +1593,46 @@ function togglePreview(){
   previewWrap.style.display = previewWrap.style.display === 'none' ? 'block' : 'none';
 }
 
-async function downloadPendentes(){
-  const pending = allRows.filter(r => r.exportado === false || r.exportado === 'FALSE' || r.exportado === '');
-  if (!pending.length){
-    showGlobalMsg('warn', 'Não tem nada pendente pra exportar.');
-    return;
-  }
-  const header = 'reference;Store_ID;Seller_ID';
-  const lines = pending.map(r => `${r.reference};${r.Store_ID};${r.Seller_ID}`);
-  const csv = '\uFEFF' + [header, ...lines].join('\r\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const stamp = new Date().toISOString().slice(0,10);
-  const filename = `excel_chave_encarteiramento_${stamp}.csv`;
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-
+async function marcarExportado(nome, qtd){
   try{
     await postAction({ action: 'markAllExported' });
     await fetchState();
-    showGlobalMsg('ok', `✓ Baixado "${filename}" com ${pending.length.toLocaleString('pt-BR')} clientes, e marcado como exportado na planilha.`);
+    showGlobalMsg('ok', `✓ Baixado "${nome}" com ${fmtN(qtd)} clientes, e os pendentes foram marcados como exportados na planilha.`);
   }catch(err){
-    showGlobalMsg('warn', `Baixei o arquivo, mas não consegui marcar como exportado na planilha (${err.message}). Se gerar de novo, pode vir duplicado — confere antes de subir na Dito.`);
+    showGlobalMsg('warn', `Baixei o arquivo, mas não consegui marcar como exportado na planilha (${escHtml(err.message)}). Se gerar de novo, pode vir duplicado — confere antes de subir na Dito.`);
   }
+}
+
+// só os novos (pendentes), já no formato certo e sem quem está na carteira
+async function downloadPendentes(){
+  const rows = pendentesNormalizados();
+  if (!pendentesRows().length){
+    showGlobalMsg('warn', 'Não tem nada pendente pra exportar.');
+    return;
+  }
+  const nome = `excel_chave_encarteiramento_novos_${new Date().toISOString().slice(0,10)}.csv`;
+  baixarCSV(nome, ['reference;Store_ID;Seller_ID', ...rows.map(r => `${r.reference};${r.Store_ID};${r.Seller_ID}`)]);
+  await marcarExportado(nome, rows.length);
+}
+
+// arquivo final: carteira da Dito + pendentes novos, um vendedor por cliente
+async function downloadFinal(){
+  if (!carteira){
+    showGlobalMsg('err', 'Sobe a carteira atual da Dito primeiro (no topo da página) pra gerar o arquivo final.');
+    return;
+  }
+  const novos = pendentesNormalizados();
+  const linhas = ['reference;Store_ID;Seller_ID'];
+  carteira.forEach((se, ref) => linhas.push(`${ref};${se.split(':')[0]};${se}`));
+  novos.forEach(r => linhas.push(`${r.reference};${r.Store_ID};${r.Seller_ID}`));
+  const nome = `excel_chave_encarteiramento_final_${new Date().toISOString().slice(0,10)}.csv`;
+  baixarCSV(nome, linhas);
+  // os novos passam a fazer parte da carteira deste navegador (até subir a próxima versão da Dito)
+  novos.forEach(r => carteira.set(r.reference, r.Seller_ID));
+  carteiraMeta.clientes = carteira.size;
+  salvarCarteiraLocal(); renderCarteira();
+  if (pendentesRows().length) await marcarExportado(nome, linhas.length - 1);
+  else showGlobalMsg('ok', `✓ Baixado "${nome}" com ${fmtN(linhas.length - 1)} clientes (não havia pendentes novos).`);
 }
 </script>
 </body>
